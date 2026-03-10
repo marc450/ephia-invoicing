@@ -2902,7 +2902,7 @@ function SettingsPanel({ practice, setPractice, show, setShow, onSave, isFirstTi
                   <option value="IE">IE</option>
                 </select>
                 <div className="relative">
-                  <input className={inputCls2 + " w-28 pr-8"} type="text" inputMode="decimal" value={p.preisStr ?? ""} placeholder="0,00" onChange={(e) => { const arr = [...(practice.praeparate || [])]; arr[idx] = { ...arr[idx], preisStr: e.target.value }; setPractice({ ...practice, praeparate: arr }); }} />
+                  <input className={inputCls2 + " w-28 pr-8"} type="text" inputMode="decimal" value={p.preisStr ?? ""} placeholder="0,00" onChange={(e) => { const v = e.target.value.replace(/[^\d,.\- ]/g, ""); const arr = [...(practice.praeparate || [])]; arr[idx] = { ...arr[idx], preisStr: v }; setPractice({ ...practice, praeparate: arr }); }} />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">€</span>
                 </div>
                 <button className="p-1.5 text-gray-400 hover:text-red-500 transition flex-shrink-0" onClick={() => { const arr = [...(practice.praeparate || [])]; arr.splice(idx, 1); setPractice({ ...practice, praeparate: arr }); }} title="Entfernen">
@@ -7802,11 +7802,11 @@ export default function EphiaInvoice() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">{hvOnlyMode ? "Geplante Menge" : "Menge"} *</label>
-                  <input id="field-ml" type="text" inputMode="decimal" className={inputCls("ml")} value={mlStr} placeholder="0,45" onChange={(e) => { setMlStr(e.target.value); clearError("ml"); }} />
+                  <input id="field-ml" type="text" inputMode="decimal" className={inputCls("ml")} value={mlStr} placeholder="0,45" onChange={(e) => { const v = e.target.value.replace(/[^\d,.+*×x\- ]/g, ""); setMlStr(v); clearError("ml"); }} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1"><span className="hidden sm:inline">Preis / </span><span className="sm:hidden">€ / </span>{einheit}<span className="hidden sm:inline"> (€)</span> *</label>
-                  <input id="field-preisProMl" type="text" inputMode="decimal" className={inputCls("preisProMl")} value={preisProMlStr} placeholder="" onChange={(e) => { setPreisProMlStr(e.target.value); clearError("preisProMl"); }} />
+                  <input id="field-preisProMl" type="text" inputMode="decimal" className={inputCls("preisProMl")} value={preisProMlStr} placeholder="" onChange={(e) => { const v = e.target.value.replace(/[^\d,.+*×x\- ]/g, ""); setPreisProMlStr(v); clearError("preisProMl"); }} />
                 </div>
               </div>
               </div>
