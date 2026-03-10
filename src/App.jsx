@@ -3520,17 +3520,17 @@ function PatientListView({ patients, invoices, kleinunternehmer, onSelectPatient
         </div>
       </div>
       <div className="overflow-x-auto">
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr className="bg-gray-50 border-b border-gray-100">
             <th className={thCls} onClick={() => handleSort("vorname")}>Vorname{sortIndicator("vorname")}</th>
             <th className={thCls} onClick={() => handleSort("nachname")}>Nachname{sortIndicator("nachname")}</th>
             <th className={thCls} onClick={() => handleSort("email")}>E-Mail{sortIndicator("email")}</th>
-            <th className={thCls} onClick={() => handleSort("invoiceCount")}>Rechnungen{sortIndicator("invoiceCount")}</th>
-            <th className={thCls} onClick={() => handleSort("offen")}>Offen{sortIndicator("offen")}</th>
-            <th className={thCls} onClick={() => handleSort("paidThisYear")}>Bezahlt {new Date().getFullYear()}{sortIndicator("paidThisYear")}</th>
-            <th className={thCls} onClick={() => handleSort("lastDate")}>Letzte Rechnung{sortIndicator("lastDate")}</th>
-            <th className="px-3 py-2 w-10"></th>
+            <th className={thCls + " hidden sm:table-cell"} onClick={() => handleSort("invoiceCount")}>Rechnungen{sortIndicator("invoiceCount")}</th>
+            <th className={thCls + " hidden md:table-cell"} onClick={() => handleSort("offen")}>Offen{sortIndicator("offen")}</th>
+            <th className={thCls + " hidden md:table-cell"} onClick={() => handleSort("paidThisYear")}>Bezahlt {new Date().getFullYear()}{sortIndicator("paidThisYear")}</th>
+            <th className={thCls + " hidden lg:table-cell"} onClick={() => handleSort("lastDate")}>Letzte Rechnung{sortIndicator("lastDate")}</th>
+            <th className="px-3 py-2 w-10 hidden sm:table-cell"></th>
           </tr>
         </thead>
         <tbody>
@@ -3538,12 +3538,12 @@ function PatientListView({ patients, invoices, kleinunternehmer, onSelectPatient
             <tr key={p.email} className="border-b border-gray-50 hover:bg-blue-50 transition cursor-pointer" onClick={() => onSelectPatient(p)}>
               <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-700">{p.vorname}</span></td>
               <td className="px-3 py-3 align-middle"><span className="text-sm font-medium text-gray-700">{p.nachname}</span></td>
-              <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500">{p.email}</span></td>
-              <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500">{p.invoiceCount}</span></td>
-              <td className="px-3 py-3 align-middle"><span className={`text-sm ${p.offen > 0 ? "text-amber-600 font-medium" : "text-gray-400"}`}>{p.offen > 0 ? p.offen.toFixed(2).replace(".", ",") + " €" : "–"}</span></td>
-              <td className="px-3 py-3 align-middle"><span className={`text-sm ${p.paidThisYear > 0 ? "text-green-600" : "text-gray-400"}`}>{p.paidThisYear > 0 ? p.paidThisYear.toFixed(2).replace(".", ",") + " €" : "–"}</span></td>
-              <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500">{p.lastInvoiceDate ? fmtDate(p.lastInvoiceDate) : "–"}</span></td>
-              <td className="px-3 py-3 align-middle">
+              <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500 break-all">{p.email}</span></td>
+              <td className="px-3 py-3 align-middle hidden sm:table-cell"><span className="text-sm text-gray-500">{p.invoiceCount}</span></td>
+              <td className="px-3 py-3 align-middle hidden md:table-cell"><span className={`text-sm ${p.offen > 0 ? "text-amber-600 font-medium" : "text-gray-400"}`}>{p.offen > 0 ? p.offen.toFixed(2).replace(".", ",") + " €" : "–"}</span></td>
+              <td className="px-3 py-3 align-middle hidden md:table-cell"><span className={`text-sm ${p.paidThisYear > 0 ? "text-green-600" : "text-gray-400"}`}>{p.paidThisYear > 0 ? p.paidThisYear.toFixed(2).replace(".", ",") + " €" : "–"}</span></td>
+              <td className="px-3 py-3 align-middle hidden lg:table-cell"><span className="text-sm text-gray-500">{p.lastInvoiceDate ? fmtDate(p.lastInvoiceDate) : "–"}</span></td>
+              <td className="px-3 py-3 align-middle hidden sm:table-cell">
                 <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={(e) => { e.stopPropagation(); onDeletePatient(p._raw); }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
@@ -3898,17 +3898,22 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
                   <div className="grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto_1fr] gap-x-3 gap-y-1.5 text-xs">
                     <span className="text-gray-400">E-Mail</span>
                     <span>{email ? <a href={`mailto:${email}`} className="text-blue-500 hover:text-blue-700">{email}</a> : <span className="text-gray-400">—</span>}</span>
-                    <span className="hidden sm:inline text-gray-400">Telefon</span>
-                    <span className="hidden sm:inline text-gray-600">{rawData.phone ? fmtPhone(rawData.phone) : "—"}</span>
-                    <span className="hidden sm:inline text-gray-400">Adresse</span>
-                    <span className="hidden sm:inline text-gray-600">{rawData.address1 ? `${rawData.address1}, ${rawData.address2 || ""}` : "—"}</span>
-                    <span className="hidden sm:inline text-gray-400">Land</span>
-                    <span className="hidden sm:inline text-gray-600">{rawData.country || "Deutschland"}</span>
-                    {rawData.geschlecht && <><span className="hidden sm:inline text-gray-400">Geschlecht</span><span className="hidden sm:inline text-gray-600">{rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "Männlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht}</span></>}
-                    {rawData.geburtsdatum && <><span className="hidden sm:inline text-gray-400">Geburtsdatum</span><span className="hidden sm:inline text-gray-600">{new Date(rawData.geburtsdatum).toLocaleDateString("de-DE")}</span></>}
-                    {!rawData.geburtsdatum && rawData.alter && <><span className="hidden sm:inline text-gray-400">Alter</span><span className="hidden sm:inline text-gray-600">{rawData.alter} Jahre</span></>}
-                    {rawData.groesse && <><span className="hidden sm:inline text-gray-400">Größe</span><span className="hidden sm:inline text-gray-600">{rawData.groesse} cm</span></>}
-                    {rawData.gewicht && <><span className="hidden sm:inline text-gray-400">Gewicht</span><span className="hidden sm:inline text-gray-600">{rawData.gewicht} kg</span></>}
+                    <span className="text-gray-400">Telefon</span>
+                    <span className="text-gray-600">{rawData.phone ? (
+                      <>
+                        <a href={`tel:${rawData.phone.replace(/[^\d+]/g, "")}`} className="sm:hidden text-blue-500 hover:text-blue-700">{fmtPhone(rawData.phone)}</a>
+                        <span className="hidden sm:inline">{fmtPhone(rawData.phone)}</span>
+                      </>
+                    ) : <span className="text-gray-400">—</span>}</span>
+                    <span className="text-gray-400">Adresse</span>
+                    <span className="text-gray-600">{rawData.address1 ? `${rawData.address1}, ${rawData.address2 || ""}` : "—"}</span>
+                    <span className="text-gray-400">Land</span>
+                    <span className="text-gray-600">{rawData.country || "Deutschland"}</span>
+                    {rawData.geschlecht && <><span className="text-gray-400">Geschlecht</span><span className="text-gray-600">{rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "Männlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht}</span></>}
+                    {rawData.geburtsdatum && <><span className="text-gray-400">Geburtsdatum</span><span className="text-gray-600">{new Date(rawData.geburtsdatum).toLocaleDateString("de-DE")}</span></>}
+                    {!rawData.geburtsdatum && rawData.alter && <><span className="text-gray-400">Alter</span><span className="text-gray-600">{rawData.alter} Jahre</span></>}
+                    {rawData.groesse && <><span className="text-gray-400">Größe</span><span className="text-gray-600">{rawData.groesse} cm</span></>}
+                    {rawData.gewicht && <><span className="text-gray-400">Gewicht</span><span className="text-gray-600">{rawData.gewicht} kg</span></>}
                   </div>
                 </div>
               )}
