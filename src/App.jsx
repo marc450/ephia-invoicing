@@ -4190,7 +4190,7 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
                         : consentStatus === "complete"
                         ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Vollständig</span>
                         : consentStatus === "pending_doctor"
-                        ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Arzt fehlt</span>
+                        ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Ärzt:in fehlt</span>
                         : <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">Entwurf</span>
                       }
                     </td>
@@ -5411,7 +5411,7 @@ function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewT
                         : consentStatus === "complete"
                         ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Vollständig</span>
                         : consentStatus === "pending_doctor"
-                        ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Arzt fehlt</span>
+                        ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Ärzt:in fehlt</span>
                         : <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">Entwurf</span>
                       }
                     </td>
@@ -8558,7 +8558,7 @@ export default function EphiaInvoice() {
                   : isComplete
                   ? <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Vollständig</span>
                   : needsDoctorSig
-                  ? <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Arzt fehlt</span>
+                  ? <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Ärzt:in fehlt</span>
                   : <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">Entwurf</span>
                 }
                 {cd.pdfHash && <span className="text-[10px] text-gray-400 font-mono">SHA-256: {cd.pdfHash.substring(0, 12)}…</span>}
