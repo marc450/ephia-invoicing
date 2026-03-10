@@ -2203,55 +2203,24 @@ function SignaturePad({ onSave, label, width = 320, height = 160 }) {
 }
 
 function SignatureModal({ onComplete, onClose, existingSignatures }) {
-  const [step, setStep] = React.useState(1); // 1 = patient, 2 = doctor
-  const patientSigRef = React.useRef(existingSignatures?.patient || null);
-  const doctorSigRef = React.useRef(existingSignatures?.doctor || null);
-
   const handlePatientSave = (dataUrl) => {
-    patientSigRef.current = dataUrl;
-    setStep(2);
-  };
-
-  const handleDoctorSave = (dataUrl) => {
-    doctorSigRef.current = dataUrl;
-    onComplete({ patient: patientSigRef.current, doctor: dataUrl });
-  };
-
-  const handleSkipPatient = () => {
-    setStep(2);
-  };
-
-  const handleSkipDoctor = () => {
-    onComplete({ patient: patientSigRef.current, doctor: doctorSigRef.current });
+    onComplete({ patient: dataUrl, doctor: existingSignatures?.doctor || null });
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-800">
-            {step === 1 ? "Schritt 1 von 2 — Patient:in" : "Schritt 2 von 2 — Ärzt:in"}
-          </h3>
+          <h3 className="text-sm font-semibold text-gray-800">Unterschrift Patient:in</h3>
           <button className="p-1 text-gray-400 hover:text-gray-600" onClick={onClose}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
-
-        {step === 1 ? (
-          <>
-            <SignaturePad key="patient-sig" label="Unterschrift Patient:in" onSave={handlePatientSave} />
-            <button className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600 transition py-1" onClick={handleSkipPatient}>
-              Überspringen
-            </button>
-          </>
-        ) : (
-          <>
-            <SignaturePad key="doctor-sig" label="Unterschrift Ärzt:in" onSave={handleDoctorSave} />
-            <button className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600 transition py-1" onClick={handleSkipDoctor}>
-              Überspringen
-            </button>
-          </>
-        )}
+        <p className="text-[10px] text-gray-400 text-center mb-3">Die Unterschrift der Ärztin/des Arztes kann später hinzugefügt werden.</p>
+        <SignaturePad key="patient-sig" label="Unterschrift Patient:in" onSave={handlePatientSave} />
+        <button className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600 transition py-1" onClick={onClose}>
+          Abbrechen
+        </button>
       </div>
     </div>
   );
@@ -3220,7 +3189,7 @@ function InvoicePreview({ practice, patient: rawPatient, invoiceMeta, lineItems,
 
 // ═══════════════════ Honorarvereinbarung Preview ═══════════════════
 
-function HonorarvereinbarungPreview({ practice, patient: rawPatient, invoiceMeta, lineItems, isStandalone, signatures, onSignatureClick }) {
+function HonorarvereinbarungPreview({ practice, patient: rawPatient, invoiceMeta, lineItems, isStandalone, signatures, onSignatureClick, onDoctorSign }) {
   const patient = rawPatient || {};
   const goaItems = lineItems.filter((it) => !it.isProduct);
   const praeparatItems = lineItems.filter((it) => it.isPraeparat);
@@ -3382,13 +3351,21 @@ function HonorarvereinbarungPreview({ practice, patient: rawPatient, invoiceMeta
       <div style={{ marginTop: "30px", marginBottom: "60px" }}>
         <span>Ort, Datum: {invoiceMeta.ort ? `${invoiceMeta.ort}, ${fmtDate(invoiceMeta.datum)}` : ""}</span>
       </div>
-      <div style={{ cursor: onSignatureClick ? "pointer" : "default", borderRadius: "8px", padding: "8px", transition: "background 0.2s", ...(onSignatureClick ? { border: "2px dashed #93c5fd", background: "#eff6ff" } : {}) }} onClick={onSignatureClick || undefined} title={onSignatureClick ? "Tippen zum Unterschreiben" : undefined}>
+      <div style={{ borderRadius: "8px", padding: "8px" }}>
         <div style={{ display: "flex", justifyContent: "space-around" }}>
-          <div style={{ textAlign: "center" }}>
-            {signatures?.doctor && (
+          <div
+            style={{ textAlign: "center", minWidth: "140px", ...(onDoctorSign && !signatures?.doctor ? { cursor: "pointer", borderRadius: "6px", padding: "8px", border: "2px dashed #93c5fd", background: "#eff6ff" } : {}) }}
+            onClick={onDoctorSign && !signatures?.doctor ? onDoctorSign : undefined}
+            title={onDoctorSign && !signatures?.doctor ? "Klicken zum Unterschreiben" : undefined}
+          >
+            {signatures?.doctor ? (
               <img src={signatures.doctor} alt="Unterschrift Ärzt:in" style={{ height: "60px", marginBottom: "4px", display: "block", margin: "0 auto 4px" }} />
-            )}
-            <div style={{ borderTop: signatures?.doctor ? "1px solid #999" : "none", paddingTop: signatures?.doctor ? "4px" : "40px", minWidth: "140px" }}>
+            ) : onDoctorSign ? (
+              <div style={{ height: "55px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "4px" }}>
+                <span style={{ fontSize: "10px", color: "#3b82f6" }}>Hier unterschreiben</span>
+              </div>
+            ) : null}
+            <div style={{ borderTop: signatures?.doctor ? "1px solid #999" : "none", paddingTop: signatures?.doctor ? "4px" : (onDoctorSign ? "4px" : "40px"), minWidth: "140px" }}>
               <span>Unterschrift Ärzt:in</span>
             </div>
           </div>
@@ -4099,7 +4076,8 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
                     <td className="px-3 py-3 align-middle">
                       <span className="text-sm text-gray-500">{inv.invoiceMeta.nummer}</span>
                       {inv._signedHvUpload && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Unterschrieben</span>}
-                      {inv._signatures && (inv._signatures.doctor || inv._signatures.patient) && !inv._signedHvUpload && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded">Signiert</span>}
+                      {!inv._signedHvUpload && inv._signatures?.patient && inv._signatures?.doctor && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Vollständig</span>}
+                      {!inv._signedHvUpload && inv._signatures?.patient && !inv._signatures?.doctor && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Ärzt:in fehlt</span>}
                     </td>
                     <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500">{fmtDate(inv.invoiceMeta.datum)}</span></td>
                     <td className="hidden sm:table-cell px-3 py-3 align-middle"><span className="text-xs text-gray-400">{createdAt}</span></td>
@@ -5523,6 +5501,7 @@ export default function EphiaInvoice() {
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showConsentDoctorSign, setShowConsentDoctorSign] = useState(false);
+  const [showHvDoctorSign, setShowHvDoctorSign] = useState(false);
   const [consentPatient, setConsentPatient] = useState(null); // patient for active consent flow
   const [consentTemplate, setConsentTemplate] = useState(null); // active consent template
   const [consentWarningPatient, setConsentWarningPatient] = useState(null); // patient pending consent warning confirmation
@@ -6790,7 +6769,19 @@ export default function EphiaInvoice() {
     // Merge with existing signatures
     const merged = { ...(viewingInvoice?._signatures || {}), ...signatures };
     await updateViewingInvoiceData({ _signatures: merged });
-    setSaveToast("Unterschriften gespeichert");
+    setSaveToast("Unterschrift gespeichert");
+    setTimeout(() => setSaveToast(""), 2500);
+  };
+
+  const handleHvDoctorSignComplete = async (doctorSigDataUrl) => {
+    setShowHvDoctorSign(false);
+    if (!doctorSigDataUrl) return;
+    const targetInv = viewingInvoice._fromHvId
+      ? invoices.find((inv) => inv.id === viewingInvoice._fromHvId)
+      : viewingInvoice;
+    const merged = { ...(targetInv?._signatures || {}), doctor: doctorSigDataUrl };
+    await updateViewingInvoiceData({ _signatures: merged });
+    setSaveToast("Ärzt:in Unterschrift gespeichert");
     setTimeout(() => setSaveToast(""), 2500);
   };
 
@@ -8678,6 +8669,15 @@ export default function EphiaInvoice() {
                   )}
                 </div>
               ) : <div />}
+              {/* HV status badge */}
+              {(previewTab === "honorar" || isHvOnly) && (() => {
+                const hvSigs = (linkedHV || viewingInvoice)?._signatures;
+                const hvSignedUpload = (linkedHV || viewingInvoice)?._signedHvUpload;
+                if (hvSignedUpload) return <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Unterschrieben</span>;
+                if (hvSigs?.patient && hvSigs?.doctor) return <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Vollständig</span>;
+                if (hvSigs?.patient && !hvSigs?.doctor) return <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Ärzt:in fehlt</span>;
+                return null;
+              })()}
               {/* Action buttons */}
               <div className="flex gap-1.5">
                 <button className="p-2 rounded-lg border border-gray-200 text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition" onClick={() => handleAmend(viewingInvoice, previewTab)} title="Ändern">
@@ -8743,7 +8743,7 @@ export default function EphiaInvoice() {
                       </div>
                     )
                   ) : (
-                    <HonorarvereinbarungPreview practice={viewPractice} patient={(linkedHV || viewingInvoice).patient} invoiceMeta={(linkedHV || viewingInvoice).invoiceMeta} lineItems={(linkedHV || viewingInvoice).lineItems} isStandalone={!!(linkedHV ? linkedHV._hvOnly : viewingInvoice._hvOnly)} signatures={(linkedHV || viewingInvoice)._signatures} onSignatureClick={() => setShowSignatureModal(true)} />
+                    <HonorarvereinbarungPreview practice={viewPractice} patient={(linkedHV || viewingInvoice).patient} invoiceMeta={(linkedHV || viewingInvoice).invoiceMeta} lineItems={(linkedHV || viewingInvoice).lineItems} isStandalone={!!(linkedHV ? linkedHV._hvOnly : viewingInvoice._hvOnly)} signatures={(linkedHV || viewingInvoice)._signatures} onSignatureClick={() => setShowSignatureModal(true)} onDoctorSign={(linkedHV || viewingInvoice)._signatures?.patient && !(linkedHV || viewingInvoice)._signatures?.doctor ? () => setShowHvDoctorSign(true) : undefined} />
                   )
                 ) : (
                   <InvoicePreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} begruendung={viewingInvoice.begruendung} targetGesamt={viewingInvoice.targetGesamt} />
@@ -8792,7 +8792,7 @@ export default function EphiaInvoice() {
                         </div>
                       )
                     ) : (
-                      <HonorarvereinbarungPreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} isStandalone={!!viewingInvoice._hvOnly} signatures={viewingInvoice._signatures} onSignatureClick={() => setShowSignatureModal(true)} />
+                      <HonorarvereinbarungPreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} isStandalone={!!viewingInvoice._hvOnly} signatures={viewingInvoice._signatures} onSignatureClick={() => setShowSignatureModal(true)} onDoctorSign={viewingInvoice._signatures?.patient && !viewingInvoice._signatures?.doctor ? () => setShowHvDoctorSign(true) : undefined} />
                     )
                   ) : (
                     <InvoicePreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} begruendung={viewingInvoice.begruendung} targetGesamt={viewingInvoice.targetGesamt} />
@@ -8830,13 +8830,30 @@ export default function EphiaInvoice() {
             )}
             {/* Hidden file input for HV upload */}
             <input ref={hvUploadRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleHvUpload} />
-            {/* Signature Modal */}
+            {/* Signature Modal — patient only */}
             {showSignatureModal && (
               <SignatureModal
                 onComplete={handleSignatureComplete}
                 onClose={() => setShowSignatureModal(false)}
                 existingSignatures={viewingInvoice._signatures}
               />
+            )}
+            {/* Doctor signature modal for HV */}
+            {showHvDoctorSign && (
+              <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && setShowHvDoctorSign(false)}>
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-800">Unterschrift Ärzt:in</h3>
+                    <button className="p-1 text-gray-400 hover:text-gray-600" onClick={() => setShowHvDoctorSign(false)}>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                  <SignaturePad key="hv-doctor-sig" label="Unterschrift Ärzt:in" onSave={handleHvDoctorSignComplete} />
+                  <button className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600 transition py-1" onClick={() => setShowHvDoctorSign(false)}>
+                    Abbrechen
+                  </button>
+                </div>
+              </div>
             )}
           </div>
           );
