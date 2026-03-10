@@ -1531,7 +1531,7 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
 
   // Demographics (pre-populate from patient profile if available)
   const _patientRaw = (patient._raw && typeof patient._raw.data === "object" && patient._raw.data) ? patient._raw.data : {};
-  const [alter, setAlter] = React.useState(_patientRaw.alter || "");
+  const [geburtsdatum, setGeburtsdatum] = React.useState(_patientRaw.geburtsdatum || "");
   const [groesse, setGroesse] = React.useState(_patientRaw.groesse || "");
   const [gewicht, setGewicht] = React.useState(_patientRaw.gewicht || "");
   const [geschlecht, setGeschlecht] = React.useState(_patientRaw.geschlecht || "");
@@ -1556,7 +1556,7 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
   const handleValidateAndSign = () => {
     const errors = new Set();
     // Check demographics
-    if (!alter.trim()) errors.add("alter");
+    if (!geburtsdatum.trim()) errors.add("geburtsdatum");
     if (!geschlecht) errors.add("geschlecht");
     if (!groesse.trim()) errors.add("groesse");
     if (!gewicht.trim()) errors.add("gewicht");
@@ -1603,7 +1603,7 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
     onComplete({
       templateId: template.id,
       templateVersion: template.version,
-      answers: { alter, groesse, gewicht, geschlecht, ...answers },
+      answers: { geburtsdatum, groesse, gewicht, geschlecht, ...answers },
       doctorNotes,
       treatmentDate,
       ort,
@@ -1619,7 +1619,7 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
     onComplete({
       templateId: template.id,
       templateVersion: template.version,
-      answers: { alter, groesse, gewicht, geschlecht, ...answers },
+      answers: { geburtsdatum, groesse, gewicht, geschlecht, ...answers },
       doctorNotes,
       treatmentDate,
       ort,
@@ -1701,7 +1701,7 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
 
           {/* Demographics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
-            <div data-field="alter"><label className={`text-xs md:text-sm mb-1 block ${validationErrors.has("alter") ? "text-red-500 font-medium" : "text-gray-500"}`}>Alter</label><input className={inputCls + (validationErrors.has("alter") ? " border-red-400 ring-1 ring-red-400" : "")} value={alter} onChange={e => { setAlter(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete("alter"); return n; }); }} placeholder="Jahre" /></div>
+            <div data-field="geburtsdatum"><label className={`text-xs md:text-sm mb-1 block ${validationErrors.has("geburtsdatum") ? "text-red-500 font-medium" : "text-gray-500"}`}>Geburtsdatum</label><input type="date" className={inputCls + (validationErrors.has("geburtsdatum") ? " border-red-400 ring-1 ring-red-400" : "")} value={geburtsdatum} onChange={e => { setGeburtsdatum(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete("geburtsdatum"); return n; }); }} /></div>
             <div data-field="geschlecht"><label className={`text-xs md:text-sm mb-1 block ${validationErrors.has("geschlecht") ? "text-red-500 font-medium" : "text-gray-500"}`}>Geschlecht</label>
               <select className={inputCls + (validationErrors.has("geschlecht") ? " border-red-400 ring-1 ring-red-400" : "")} value={geschlecht} onChange={e => { setGeschlecht(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete("geschlecht"); return n; }); }}>
                 <option value="">–</option><option value="w">Weiblich</option><option value="m">Männlich</option><option value="d">Divers</option>
@@ -1979,7 +1979,7 @@ function ConsentFormPreview({ template, consentData, patient, practice, onDoctor
 
       <div style={h2Style}>Fragebogen (Anamnese)</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px 12px", fontSize: "10px", marginBottom: "12px", padding: "8px 10px", background: "#f8f8f8", borderRadius: "4px" }}>
-        <div>Alter: <strong>{a.alter || "–"}</strong></div>
+        <div>Alter: <strong>{a.geburtsdatum ? (() => { const b = new Date(a.geburtsdatum); const t = new Date(); let age = t.getFullYear() - b.getFullYear(); if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--; return age; })() : (a.alter || "–")}</strong></div>
         <div>Geschlecht: <strong>{a.geschlecht === "w" ? "Weiblich" : a.geschlecht === "m" ? "Männlich" : a.geschlecht === "d" ? "Divers" : "–"}</strong></div>
         <div>Größe: <strong>{a.groesse || "–"}</strong> cm</div>
         <div>Gewicht: <strong>{a.gewicht || "–"}</strong> kg</div>
@@ -3933,7 +3933,8 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
                     <span className="text-gray-400">Land</span>
                     <span className="text-gray-600">{rawData.country || "Deutschland"}</span>
                     {rawData.geschlecht && <><span className="text-gray-400">Geschlecht</span><span className="text-gray-600">{rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "Männlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht}</span></>}
-                    {rawData.alter && <><span className="text-gray-400">Alter</span><span className="text-gray-600">{rawData.alter} Jahre</span></>}
+                    {rawData.geburtsdatum && <><span className="text-gray-400">Geburtsdatum</span><span className="text-gray-600">{new Date(rawData.geburtsdatum).toLocaleDateString("de-DE")}</span></>}
+                    {!rawData.geburtsdatum && rawData.alter && <><span className="text-gray-400">Alter</span><span className="text-gray-600">{rawData.alter} Jahre</span></>}
                     {rawData.groesse && <><span className="text-gray-400">Größe</span><span className="text-gray-600">{rawData.groesse} cm</span></>}
                     {rawData.gewicht && <><span className="text-gray-400">Gewicht</span><span className="text-gray-600">{rawData.gewicht} kg</span></>}
                   </div>
@@ -6734,7 +6735,7 @@ export default function EphiaInvoice() {
     try {
       const demoFields = {};
       if (consentData.answers) {
-        if (consentData.answers.alter) demoFields.alter = consentData.answers.alter;
+        if (consentData.answers.geburtsdatum) demoFields.geburtsdatum = consentData.answers.geburtsdatum;
         if (consentData.answers.groesse) demoFields.groesse = consentData.answers.groesse;
         if (consentData.answers.gewicht) demoFields.gewicht = consentData.answers.gewicht;
         if (consentData.answers.geschlecht) demoFields.geschlecht = consentData.answers.geschlecht;
