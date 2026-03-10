@@ -5053,17 +5053,17 @@ function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewT
   return (
     <div className="bg-white rounded-lg border border-gray-200">
       <div className="px-3 sm:px-5 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 relative z-10">
-        <div className="flex items-center gap-4">
-          <button className={tabBtnCls(tab === "rechnungen")} onClick={() => { setTab("rechnungen"); setSortKey(null); }}>
+        <div className="flex items-center gap-4 overflow-x-auto">
+          <button className={tabBtnCls(tab === "rechnungen") + " whitespace-nowrap flex-shrink-0"} onClick={() => { setTab("rechnungen"); setSortKey(null); }}>
             Rechnungen
           </button>
-          <button className={tabBtnCls(tab === "hv")} onClick={() => { setTab("hv"); setSortKey(null); }}>
+          <button className={tabBtnCls(tab === "hv") + " whitespace-nowrap flex-shrink-0"} onClick={() => { setTab("hv"); setSortKey(null); }}>
             <span className="sm:hidden">HV</span><span className="hidden sm:inline">Honorarvereinbarungen</span>
           </button>
-          <button className={tabBtnCls(tab === "td")} onClick={() => { setTab("td"); setSortKey(null); }}>
-            <span className="sm:hidden">Behandlungen</span><span className="hidden sm:inline">Behandlungsdokumentationen</span>
+          <button className={tabBtnCls(tab === "td") + " whitespace-nowrap flex-shrink-0"} onClick={() => { setTab("td"); setSortKey(null); }}>
+            <span className="sm:hidden">Behandl.</span><span className="hidden sm:inline">Behandlungsdokumentationen</span>
           </button>
-          <button className={tabBtnCls(tab === "consent")} onClick={() => { setTab("consent"); setSortKey(null); }}>
+          <button className={tabBtnCls(tab === "consent") + " whitespace-nowrap flex-shrink-0"} onClick={() => { setTab("consent"); setSortKey(null); }}>
             <span className="sm:hidden">Aufkl.</span><span className="hidden sm:inline">Aufklärungsbögen</span>
           </button>
         </div>
