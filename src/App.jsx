@@ -6153,6 +6153,10 @@ export default function EphiaInvoice() {
     if (patient.email && patient.email.trim() && !/\S+@\S+\.\S+/.test(patient.email)) errors.patientEmail = true;
     // Address fields are optional
     if (!hvOnlyMode && !invoiceMeta.nummer.trim()) errors.nummer = true;
+    if (!hvOnlyMode && invoiceMeta.nummer.trim()) {
+      const dupInvoice = invoices.find(inv => !inv._hvOnly && !inv._consentForm && inv.invoiceMeta?.nummer === invoiceMeta.nummer.trim() && inv.id !== amendingId);
+      if (dupInvoice) errors.nummerDuplicate = true;
+    }
     if (!invoiceMeta.datum) errors.datum = true;
     if (!praeparat.trim()) errors.praeparat = true;
     if (ml <= 0) errors.ml = true;
@@ -7597,7 +7601,8 @@ export default function EphiaInvoice() {
                   {!hvOnlyMode && (
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Rechnungsnummer *</label>
-                    <input id="field-nummer" className={inputCls("nummer")} value={invoiceMeta.nummer} placeholder={(() => { const ri = invoices.filter(i => i.invoiceMeta?.nummer && i.invoiceMeta.nummer !== "—"); if (ri.length === 0) return ""; const lt = ri.reduce((b, i) => { const t = i._createdAt || i.savedAt || ""; const bt = b._createdAt || b.savedAt || ""; return t > bt ? i : b; }, ri[0]); return nextInvoiceNumber(lt.invoiceMeta.nummer); })()} onChange={(e) => { setInvoiceMeta({ ...invoiceMeta, nummer: e.target.value }); clearError("nummer"); }} />
+                    <input id="field-nummer" className={inputCls(validationErrors.nummerDuplicate ? "nummerDuplicate" : "nummer")} value={invoiceMeta.nummer} placeholder={(() => { const ri = invoices.filter(i => i.invoiceMeta?.nummer && i.invoiceMeta.nummer !== "—"); if (ri.length === 0) return ""; const lt = ri.reduce((b, i) => { const t = i._createdAt || i.savedAt || ""; const bt = b._createdAt || b.savedAt || ""; return t > bt ? i : b; }, ri[0]); return nextInvoiceNumber(lt.invoiceMeta.nummer); })()} onChange={(e) => { setInvoiceMeta({ ...invoiceMeta, nummer: e.target.value }); clearError("nummer"); clearError("nummerDuplicate"); }} />
+                    {validationErrors.nummerDuplicate && <p className="text-xs text-red-500 mt-0.5">Diese Rechnungsnummer existiert bereits.</p>}
                     {invoices.length > 0 && !amendingId && (() => {
                       const realInv = invoices.filter(i => i.invoiceMeta?.nummer && i.invoiceMeta.nummer !== "—");
                       if (realInv.length === 0) return null;
