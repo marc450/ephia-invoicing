@@ -1477,8 +1477,8 @@ const CONSENT_TEMPLATES = [
   {
     id: "botox_v2",
     name: "Injektion von Botulinumtoxin A zur Faltenkorrektur",
-    title: "Aufklärungsbogen — Botulinumtoxin",
-    shortName: "Botulinumtoxin",
+    title: "Aufklärungsbogen — Botulinumtoxin Faltenkorrektur",
+    shortName: "Botox Faltenkorrektur",
     version: "2.0",
     reference: "PO 19/Derma 27 · 10/2016v2 · Thieme Compliance",
     sections: [
@@ -1529,23 +1529,66 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
   const [refused, setRefused] = React.useState(false);
   const [showHandback, setShowHandback] = React.useState(false);
 
-  // Demographics
-  const [alter, setAlter] = React.useState("");
-  const [groesse, setGroesse] = React.useState("");
-  const [gewicht, setGewicht] = React.useState("");
-  const [geschlecht, setGeschlecht] = React.useState("");
+  // Demographics (pre-populate from patient profile if available)
+  const _patientRaw = (patient._raw && typeof patient._raw.data === "object" && patient._raw.data) ? patient._raw.data : {};
+  const [alter, setAlter] = React.useState(_patientRaw.alter || "");
+  const [groesse, setGroesse] = React.useState(_patientRaw.groesse || "");
+  const [gewicht, setGewicht] = React.useState(_patientRaw.gewicht || "");
+  const [geschlecht, setGeschlecht] = React.useState(_patientRaw.geschlecht || "");
 
   // Questionnaire answers (yes/no + text)
   const allQ = [...template.questions, ...(template.additionalQuestionsWomen || [])];
   const initAnswers = {};
-  allQ.forEach(q => { initAnswers[q.id] = false; initAnswers[q.id + "_text"] = ""; });
+  allQ.forEach(q => { initAnswers[q.id] = null; initAnswers[q.id + "_text"] = ""; });
   // For q13 sub-question
-  initAnswers["q13_komplikationen"] = false; initAnswers["q13_komplikationen_text"] = "";
+  initAnswers["q13_komplikationen"] = null; initAnswers["q13_komplikationen_text"] = "";
   const [answers, setAnswers] = React.useState(initAnswers);
   const [doctorNotes, setDoctorNotes] = React.useState("");
   const [treatmentDate, setTreatmentDate] = React.useState(new Date().toISOString().split("T")[0]);
+  const [ort, setOrt] = React.useState(practice.city || practice.stadt || practice.ort || "");
+  const [validationErrors, setValidationErrors] = React.useState(new Set());
 
-  const setAnswer = (id, val) => setAnswers(prev => ({ ...prev, [id]: val }));
+  const setAnswer = (id, val) => {
+    setAnswers(prev => ({ ...prev, [id]: val }));
+    setValidationErrors(prev => { const n = new Set(prev); n.delete(id); return n; });
+  };
+
+  const handleValidateAndSign = () => {
+    const errors = new Set();
+    // Check demographics
+    if (!alter.trim()) errors.add("alter");
+    if (!geschlecht) errors.add("geschlecht");
+    if (!groesse.trim()) errors.add("groesse");
+    if (!gewicht.trim()) errors.add("gewicht");
+    // Check all visible questions
+    template.questions.forEach(q => {
+      if (answers[q.id] === null) errors.add(q.id);
+      if (answers[q.id] === true && q.followUp && !answers[q.id + "_text"]?.trim()) errors.add(q.id + "_text");
+      if (q.subQuestion && answers[q.id] === true && answers["q13_komplikationen"] === null) errors.add("q13_komplikationen");
+      if (q.subQuestion && answers[q.id] === true && answers["q13_komplikationen"] === true && !answers["q13_komplikationen_text"]?.trim()) errors.add("q13_komplikationen_text");
+    });
+    // Check women's additional questions if visible
+    if (geschlecht === "w" && template.additionalQuestionsWomen) {
+      template.additionalQuestionsWomen.forEach(q => {
+        if (answers[q.id] === null) errors.add(q.id);
+      });
+    }
+    if (errors.size > 0) {
+      setValidationErrors(errors);
+      // Scroll to first error
+      const firstErr = [...errors][0];
+      const el = scrollRef.current?.querySelector(`[data-field="${firstErr}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("animate-pulse");
+        setTimeout(() => el.classList.remove("animate-pulse"), 2000);
+      }
+      return;
+    }
+    setValidationErrors(new Set());
+    setShowSignature(true);
+    setSigStep(1);
+  };
 
   const handleScroll = (e) => {
     const el = e.target;
@@ -1555,10 +1598,22 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
   };
 
   const handlePatientSign = (dataUrl) => {
-    patientSigRef.current = dataUrl;
-    setSigStep(2);
+    // Save immediately after patient signature; doctor signs later from preview
+    const sigs = { patient: dataUrl, doctor: null };
+    onComplete({
+      templateId: template.id,
+      templateVersion: template.version,
+      answers: { alter, groesse, gewicht, geschlecht, ...answers },
+      doctorNotes,
+      treatmentDate,
+      ort,
+      refused,
+      _signatures: sigs,
+      signedAt: new Date().toISOString(),
+    });
   };
 
+  // Keep handleDoctorSign for refusal flow (patient + immediate save)
   const handleDoctorSign = (dataUrl) => {
     const sigs = { patient: patientSigRef.current, doctor: dataUrl };
     onComplete({
@@ -1567,6 +1622,7 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
       answers: { alter, groesse, gewicht, geschlecht, ...answers },
       doctorNotes,
       treatmentDate,
+      ort,
       refused,
       _signatures: sigs,
       signedAt: new Date().toISOString(),
@@ -1584,16 +1640,11 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
       <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm md:max-w-md">
           <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-1 text-center">
-            {sigStep === 1
-              ? (refused ? "Unterschrift Patient:in (Ablehnung)" : "Schritt 1 von 2 — Patient:in")
-              : "Schritt 2 von 2 — Ärzt:in"}
+            {refused ? "Unterschrift Patient:in (Ablehnung)" : "Unterschrift Patient:in"}
           </h3>
-          <p className="text-xs text-gray-400 text-center mb-3">{patient.vorname} {patient.nachname}</p>
-          {sigStep === 1 ? (
-            <SignaturePad key="consent-patient" label="Unterschrift Patient:in" onSave={refused ? (d) => { patientSigRef.current = d; handleDoctorSign(null); } : handlePatientSign} />
-          ) : (
-            <SignaturePad key="consent-doctor" label="Unterschrift Ärzt:in" onSave={handleDoctorSign} />
-          )}
+          <p className="text-xs text-gray-400 text-center mb-1">{patient.vorname} {patient.nachname}</p>
+          {!refused && <p className="text-[10px] text-gray-400 text-center mb-3">Die Unterschrift der Ärztin/des Arztes kann später hinzugefügt werden.</p>}
+          <SignaturePad key="consent-patient" label="Unterschrift Patient:in" onSave={refused ? (d) => { patientSigRef.current = d; handleDoctorSign(null); } : handlePatientSign} />
           <div className="mt-3 flex items-center justify-between">
             <button className="text-xs md:text-sm text-gray-400 hover:text-gray-600 py-1 flex items-center gap-1" onClick={() => {
               if (sigStep === 2) { setSigStep(1); patientSigRef.current = null; }
@@ -1602,12 +1653,6 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               Zurück
             </button>
-            {!refused && sigStep === 1 && (
-              <button className="text-xs md:text-sm text-gray-400 hover:text-gray-600 py-1" onClick={() => { patientSigRef.current = null; setSigStep(2); }}>Überspringen →</button>
-            )}
-            {sigStep === 2 && (
-              <button className="text-xs md:text-sm text-gray-400 hover:text-gray-600 py-1" onClick={() => handleDoctorSign(null)}>Überspringen →</button>
-            )}
           </div>
         </div>
       </div>
@@ -1617,7 +1662,7 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
   const inputCls = "w-full px-3 py-2 md:px-4 md:py-2.5 text-sm md:text-base border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400";
 
   return (
-    <div className="fixed inset-0 z-40 bg-white md:bg-gray-50 flex flex-col">
+    <div className="fixed inset-0 z-40 bg-white md:bg-gray-50 flex flex-col overflow-hidden">
       {/* Progress bar */}
       <div className="h-1 md:h-1.5 bg-gray-100 flex-shrink-0">
         <div className="h-full bg-blue-500 transition-all duration-200" style={{ width: `${scrollProgress * 100}%` }} />
@@ -1637,7 +1682,7 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
       </div>
 
       {/* Scrollable content */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={handleScroll}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={handleScroll}>
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-4 md:py-8 space-y-6 md:space-y-8">
         {/* Info text */}
         <p className="text-xs md:text-sm text-gray-500 italic">Dieser Aufklärungsbogen dient der Vorbereitung des Aufklärungsgesprächs. Bitte lesen Sie ihn vor dem Gespräch aufmerksam durch und füllen Sie den Fragebogen gewissenhaft aus.</p>
@@ -1656,21 +1701,21 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
 
           {/* Demographics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
-            <div><label className="text-xs md:text-sm text-gray-500 mb-1 block">Alter</label><input className={inputCls} value={alter} onChange={e => setAlter(e.target.value)} placeholder="Jahre" /></div>
-            <div><label className="text-xs md:text-sm text-gray-500 mb-1 block">Geschlecht</label>
-              <select className={inputCls} value={geschlecht} onChange={e => setGeschlecht(e.target.value)}>
+            <div data-field="alter"><label className={`text-xs md:text-sm mb-1 block ${validationErrors.has("alter") ? "text-red-500 font-medium" : "text-gray-500"}`}>Alter</label><input className={inputCls + (validationErrors.has("alter") ? " border-red-400 ring-1 ring-red-400" : "")} value={alter} onChange={e => { setAlter(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete("alter"); return n; }); }} placeholder="Jahre" /></div>
+            <div data-field="geschlecht"><label className={`text-xs md:text-sm mb-1 block ${validationErrors.has("geschlecht") ? "text-red-500 font-medium" : "text-gray-500"}`}>Geschlecht</label>
+              <select className={inputCls + (validationErrors.has("geschlecht") ? " border-red-400 ring-1 ring-red-400" : "")} value={geschlecht} onChange={e => { setGeschlecht(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete("geschlecht"); return n; }); }}>
                 <option value="">–</option><option value="w">Weiblich</option><option value="m">Männlich</option><option value="d">Divers</option>
               </select>
             </div>
-            <div><label className="text-xs md:text-sm text-gray-500 mb-1 block">Größe (cm)</label><input className={inputCls} value={groesse} onChange={e => setGroesse(e.target.value)} placeholder="cm" /></div>
-            <div><label className="text-xs md:text-sm text-gray-500 mb-1 block">Gewicht (kg)</label><input className={inputCls} value={gewicht} onChange={e => setGewicht(e.target.value)} placeholder="kg" /></div>
+            <div data-field="groesse"><label className={`text-xs md:text-sm mb-1 block ${validationErrors.has("groesse") ? "text-red-500 font-medium" : "text-gray-500"}`}>Größe (cm)</label><input className={inputCls + (validationErrors.has("groesse") ? " border-red-400 ring-1 ring-red-400" : "")} value={groesse} onChange={e => { setGroesse(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete("groesse"); return n; }); }} placeholder="cm" /></div>
+            <div data-field="gewicht"><label className={`text-xs md:text-sm mb-1 block ${validationErrors.has("gewicht") ? "text-red-500 font-medium" : "text-gray-500"}`}>Gewicht (kg)</label><input className={inputCls + (validationErrors.has("gewicht") ? " border-red-400 ring-1 ring-red-400" : "")} value={gewicht} onChange={e => { setGewicht(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete("gewicht"); return n; }); }} placeholder="kg" /></div>
           </div>
 
           {/* Yes/No questions */}
           {template.questions.map((q, qi) => (
-            <div key={q.id} className="mb-4 p-3 md:p-4 rounded-lg bg-gray-50 md:bg-white md:border md:border-gray-200">
+            <div key={q.id} data-field={q.id} className={`mb-4 p-3 md:p-4 rounded-lg transition-colors ${validationErrors.has(q.id) ? "bg-red-50 md:bg-red-50 md:border md:border-red-300 ring-1 ring-red-300" : "bg-gray-50 md:bg-white md:border md:border-gray-200"}`}>
               <div className="flex items-start gap-2 md:gap-3">
-                <span className="text-xs md:text-sm font-bold text-gray-400 mt-0.5 flex-shrink-0 w-5 md:w-6 text-right">{qi + 1}.</span>
+                <span className={`text-xs md:text-sm font-bold mt-0.5 flex-shrink-0 w-5 md:w-6 text-right ${validationErrors.has(q.id) ? "text-red-500" : "text-gray-400"}`}>{qi + 1}.</span>
                 <div className="flex-1">
                   <div className="md:flex md:items-start md:justify-between md:gap-4">
                     <div className="flex-1">
@@ -1683,20 +1728,22 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
                     </div>
                   </div>
                   {answers[q.id] && q.followUp && (
-                    <div className="mt-2 md:mt-3">
-                      <label className="text-xs md:text-sm text-gray-500">{q.followUp}</label>
-                      <input className={inputCls + " mt-1"} value={answers[q.id + "_text"]} onChange={e => setAnswer(q.id + "_text", e.target.value)} />
+                    <div className="mt-2 md:mt-3" data-field={q.id + "_text"}>
+                      <label className={`text-xs md:text-sm ${validationErrors.has(q.id + "_text") ? "text-red-500 font-medium" : "text-gray-500"}`}>{q.followUp}</label>
+                      <input className={inputCls + " mt-1" + (validationErrors.has(q.id + "_text") ? " border-red-400 ring-1 ring-red-400" : "")} value={answers[q.id + "_text"]} onChange={e => setAnswer(q.id + "_text", e.target.value)} />
                     </div>
                   )}
                   {q.subQuestion && answers[q.id] && (
-                    <div className="mt-2 md:mt-3 p-2 md:p-3 bg-white md:bg-gray-50 rounded border border-gray-200">
+                    <div className={`mt-2 md:mt-3 p-2 md:p-3 rounded border ${validationErrors.has("q13_komplikationen") ? "bg-red-50 border-red-300" : "bg-white md:bg-gray-50 border-gray-200"}`} data-field="q13_komplikationen">
                       <p className="text-xs md:text-sm text-gray-700">Gab es dabei Komplikationen?</p>
                       <div className="flex gap-3 mt-1 md:mt-2">
                         <button className={`px-3 md:px-5 py-1 md:py-2 text-xs md:text-sm rounded-full border transition ${answers["q13_komplikationen"] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer("q13_komplikationen", false)}>Nein</button>
                         <button className={`px-3 md:px-5 py-1 md:py-2 text-xs md:text-sm rounded-full border transition ${answers["q13_komplikationen"] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer("q13_komplikationen", true)}>Ja</button>
                       </div>
                       {answers["q13_komplikationen"] && (
-                        <input className={inputCls + " mt-1 md:mt-2"} value={answers["q13_komplikationen_text"]} onChange={e => setAnswer("q13_komplikationen_text", e.target.value)} placeholder="Welche Komplikationen?" />
+                        <div data-field="q13_komplikationen_text">
+                          <input className={inputCls + " mt-1 md:mt-2" + (validationErrors.has("q13_komplikationen_text") ? " border-red-400 ring-1 ring-red-400" : "")} value={answers["q13_komplikationen_text"]} onChange={e => setAnswer("q13_komplikationen_text", e.target.value)} placeholder="Welche Komplikationen?" />
+                        </div>
                       )}
                     </div>
                   )}
@@ -1706,16 +1753,23 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
           ))}
 
           {/* Additional questions for women */}
-          {geschlecht === "w" && template.additionalQuestionsWomen && (
+          {template.additionalQuestionsWomen && (
             <>
               <h4 className="text-xs md:text-sm font-bold text-gray-600 mt-4 mb-2">Zusatzfragen bei Frauen</h4>
-              {template.additionalQuestionsWomen.map((q) => (
-                <div key={q.id} className="mb-3 p-3 md:p-4 rounded-lg bg-gray-50 md:bg-white md:border md:border-gray-200">
-                  <div className="md:flex md:items-center md:justify-between md:gap-4">
-                    <p className="text-sm md:text-base text-gray-800 font-medium flex-1">{q.label}</p>
-                    <div className="flex gap-3 mt-2 md:mt-0 md:flex-shrink-0">
-                      <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer(q.id, false)}>Nein</button>
-                      <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer(q.id, true)}>Ja</button>
+              {template.additionalQuestionsWomen.map((q, qi) => (
+                <div key={q.id} data-field={q.id} className={`mb-4 p-3 md:p-4 rounded-lg transition-colors ${validationErrors.has(q.id) ? "bg-red-50 md:bg-red-50 md:border md:border-red-300 ring-1 ring-red-300" : "bg-gray-50 md:bg-white md:border md:border-gray-200"}`}>
+                  <div className="flex items-start gap-2 md:gap-3">
+                    <span className={`text-xs md:text-sm font-bold mt-0.5 flex-shrink-0 w-5 md:w-6 text-right ${validationErrors.has(q.id) ? "text-red-500" : "text-gray-400"}`}>{template.questions.length + qi + 1}.</span>
+                    <div className="flex-1">
+                      <div className="md:flex md:items-start md:justify-between md:gap-4">
+                        <div className="flex-1">
+                          <p className="text-sm md:text-base text-gray-800 font-medium">{q.label}</p>
+                        </div>
+                        <div className="flex gap-3 mt-2 md:mt-0 md:flex-shrink-0">
+                          <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer(q.id, false)}>Nein</button>
+                          <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer(q.id, true)}>Ja</button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1734,18 +1788,26 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
         <div>
           <h3 className="text-sm md:text-base font-bold text-teal-700 mb-2 md:mb-3">Vorgesehene Behandlung</h3>
           <p className="text-sm md:text-base text-gray-700 mb-2">{template.plannedTreatment}</p>
-          <label className="text-xs md:text-sm text-gray-500">Vorgesehener Behandlungsbeginn</label>
-          <input type="date" className={inputCls + " mt-1 md:max-w-xs"} value={treatmentDate} onChange={e => setTreatmentDate(e.target.value)} />
+          <div className="flex flex-col md:flex-row gap-3 md:gap-6">
+            <div>
+              <label className="text-xs md:text-sm text-gray-500">Vorgesehener Behandlungsbeginn</label>
+              <input type="date" className={inputCls + " mt-1 block"} value={treatmentDate} onChange={e => setTreatmentDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs md:text-sm text-gray-500">Ort</label>
+              <input type="text" className={inputCls + " mt-1 block"} value={ort} onChange={e => setOrt(e.target.value)} placeholder="z.B. Basel" />
+            </div>
+          </div>
         </div>
 
         {/* Consent text */}
         <div className="border-t border-gray-200 pt-4 md:pt-6">
           <h3 className="text-sm md:text-base font-bold text-teal-700 mb-2 md:mb-3">Einwilligung</h3>
-          <div className="p-3 md:p-5 bg-gray-50 rounded-lg text-sm md:text-base text-gray-700 leading-relaxed whitespace-pre-line">{template.consentText}</div>
+          <div className="text-sm md:text-base text-gray-700 leading-relaxed whitespace-pre-line">{template.consentText}</div>
         </div>
 
         {/* Spacer so user can scroll to show the bottom bar */}
-        <div className="h-32" />
+        <div className="h-6 md:h-8" />
         </div>
       </div>
 
@@ -1760,15 +1822,12 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
           <button
             className={`flex-1 py-2.5 md:py-3 text-sm md:text-base font-medium rounded-lg transition ${confirmed ? "bg-teal-600 text-white hover:bg-teal-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
             disabled={!confirmed}
-            onClick={() => { setShowSignature(true); setSigStep(1); }}
+            onClick={handleValidateAndSign}
           >
             Unterschreiben
           </button>
-          <button className="px-4 md:px-6 py-2.5 md:py-3 text-xs md:text-sm text-red-400 hover:text-red-600 border border-gray-200 rounded-lg transition" onClick={handleRefuse}>
-            Ablehnen
-          </button>
           <button className="px-4 md:px-6 py-2.5 md:py-3 text-xs md:text-sm text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg transition" onClick={() => setShowHandback(true)}>
-            Abbrechen
+            Ablehnen
           </button>
         </div>
         </div>
@@ -1800,122 +1859,259 @@ function ConsentFormView({ template, patient, practice, onComplete, onCancel }) 
 }
 
 // Consent Form Preview for PDF generation
-function ConsentFormPreview({ template, consentData, patient, practice }) {
-  const S = { page: { width: "210mm", minHeight: "297mm", padding: "15mm 18mm", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontSize: "10px", lineHeight: "1.5", color: "#1a1a1a", background: "#fff" }, h2: { fontSize: "13px", fontWeight: "bold", color: "#00796b", margin: "16px 0 6px" }, h3: { fontSize: "11px", fontWeight: "bold", color: "#00796b", margin: "12px 0 4px" } };
+function ConsentFormPreview({ template, consentData, patient, practice, onDoctorSign }) {
   const a = consentData.answers || {};
+  const datumStr = fmtDate(consentData.treatmentDate || new Date().toISOString().split("T")[0]);
+  const ortStr = consentData.ort || practice.city || practice.stadt || practice.ort || "";
 
-  return (
-    <div id="consent-form-pdf-target" style={S.page}>
-      {/* Header */}
-      <div style={{ borderBottom: "2px solid #00796b", paddingBottom: "8px", marginBottom: "12px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontSize: "14px", fontWeight: "bold" }}>{practice.name || "Praxis"}</div>
-            <div style={{ fontSize: "9px", color: "#666" }}>{practice.strasse} · {practice.plz} {practice.stadt}</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "12px", fontWeight: "bold", color: "#00796b" }}>{template.name}</div>
-            <div style={{ fontSize: "8px", color: "#999" }}>{template.reference} · Version {template.version}</div>
-          </div>
-        </div>
-        <div style={{ marginTop: "8px", fontSize: "10px" }}>
-          <strong>Patient:in:</strong> {patient.vorname} {patient.nachname} · <strong>Datum:</strong> {fmtDate(consentData.treatmentDate || new Date().toISOString().split("T")[0])}
-        </div>
-      </div>
+  const measRefA = React.useRef(null);
+  const measRefB = React.useRef(null);
+  const measRefC = React.useRef(null);
+  const [pagesA, setPagesA] = React.useState(1);
+  const [pagesB, setPagesB] = React.useState(1);
+  const [pagesC, setPagesC] = React.useState(1);
 
-      {/* Info sections */}
-      {template.sections.map((section, i) => (
-        <div key={i}>
-          <div style={S.h2}>{section.title}</div>
-          <div style={{ fontSize: "9px", lineHeight: "1.5" }} dangerouslySetInnerHTML={{ __html: section.html }} />
-        </div>
-      ))}
+  const baseFont = { fontFamily: "'Segoe UI', Arial, sans-serif", fontSize: "11px", lineHeight: "1.55", color: "#1a1a1a" };
+  const pageStyle = { ...baseFont, width: "210mm", height: "297mm", background: "white", position: "relative", boxSizing: "border-box", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06)", border: "1px solid #e5e7eb", borderRadius: "2px" };
+  const h2Style = { fontSize: "12px", fontWeight: "700", color: "#222", margin: "14px 0 6px" };
+  const h3Style = { fontSize: "11px", fontWeight: "600", color: "#444", margin: "10px 0 4px" };
+  const bodyText = { fontSize: "9.5px", lineHeight: "1.55", color: "#333" };
+  const hiddenMeas = { position: "absolute", left: "-9999px", top: 0, visibility: "hidden", ...baseFont, width: "calc(210mm - 88px)" };
 
-      {/* Questionnaire */}
-      <div style={{ pageBreakBefore: "always" }}>
-        <div style={S.h2}>Fragebogen (Anamnese)</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", fontSize: "9px", marginBottom: "8px" }}>
-          <div>Alter: <strong>{a.alter || "–"}</strong> Jahre</div>
-          <div>Geschlecht: <strong>{a.geschlecht === "w" ? "Weiblich" : a.geschlecht === "m" ? "Männlich" : a.geschlecht === "d" ? "Divers" : "–"}</strong></div>
-          <div>Größe: <strong>{a.groesse || "–"}</strong> cm</div>
-          <div>Gewicht: <strong>{a.gewicht || "–"}</strong> kg</div>
-        </div>
-        <table style={{ width: "100%", fontSize: "9px", borderCollapse: "collapse" }}>
-          <tbody>
-            {template.questions.map((q, qi) => (
-              <React.Fragment key={q.id}>
-                <tr style={{ borderBottom: "1px solid #e5e5e5" }}>
-                  <td style={{ padding: "3px 4px", width: "20px", verticalAlign: "top" }}>{qi + 1}.</td>
-                  <td style={{ padding: "3px 4px" }}>{q.label}</td>
-                  <td style={{ padding: "3px 4px", width: "40px", textAlign: "center", fontWeight: "bold" }}>{a[q.id] ? "Ja" : "Nein"}</td>
-                </tr>
-                {a[q.id] && a[q.id + "_text"] && (
-                  <tr style={{ borderBottom: "1px solid #e5e5e5" }}>
-                    <td></td>
-                    <td colSpan={2} style={{ padding: "2px 4px", fontStyle: "italic", color: "#555" }}>→ {a[q.id + "_text"]}</td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))}
-            {a.geschlecht === "w" && template.additionalQuestionsWomen?.map(q => (
-              <tr key={q.id} style={{ borderBottom: "1px solid #e5e5e5" }}>
-                <td style={{ padding: "3px 4px" }}></td>
-                <td style={{ padding: "3px 4px" }}>{q.label}</td>
-                <td style={{ padding: "3px 4px", width: "40px", textAlign: "center", fontWeight: "bold" }}>{a[q.id] ? "Ja" : "Nein"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  const CONTENT_H = 893;
 
-      {/* Doctor notes */}
-      {consentData.doctorNotes && (
-        <div style={{ marginTop: "12px" }}>
-          <div style={S.h3}>Vermerke der Ärztin/des Arztes</div>
-          <div style={{ fontSize: "9px", whiteSpace: "pre-wrap", padding: "4px", border: "1px solid #ddd", borderRadius: "4px", minHeight: "20mm" }}>{consentData.doctorNotes}</div>
-        </div>
-      )}
+  // Split template.sections at "Erfolgsaussichten"
+  const erfIdx = template.sections.findIndex(s => s.title === "Erfolgsaussichten");
+  const sectionsGroupA = erfIdx >= 0 ? template.sections.slice(0, erfIdx) : template.sections;
+  const sectionsGroupB = erfIdx >= 0 ? template.sections.slice(erfIdx) : [];
 
-      {/* Treatment */}
-      <div style={{ marginTop: "10px", fontSize: "9px" }}>
-        <strong>Folgende Behandlung ist vorgesehen:</strong> {template.plannedTreatment}<br />
-        <strong>Vorgesehener Behandlungsbeginn:</strong> {fmtDate(consentData.treatmentDate)}
-      </div>
+  // Measure each content group independently
+  React.useLayoutEffect(() => {
+    if (measRefA.current) setPagesA(Math.max(1, Math.ceil(measRefA.current.scrollHeight / CONTENT_H)));
+    if (measRefB.current) setPagesB(Math.max(1, Math.ceil(measRefB.current.scrollHeight / CONTENT_H)));
+    if (measRefC.current) setPagesC(Math.max(1, Math.ceil(measRefC.current.scrollHeight / CONTENT_H)));
+  }, [template, consentData]);
 
-      {/* Consent / Refusal */}
-      <div style={{ marginTop: "16px", border: "1px solid #00796b", borderRadius: "4px", padding: "10px" }}>
-        <div style={{ ...S.h2, marginTop: 0 }}>{consentData.refused ? "Ablehnung" : "Einwilligung"}</div>
-        <div style={{ fontSize: "9px", whiteSpace: "pre-line", lineHeight: "1.5" }}>
-          {consentData.refused ? template.refusalText : template.consentText}
-        </div>
+  const totalPages = pagesA + pagesB + pagesC;
 
-        {/* Signatures */}
-        <div style={{ display: "flex", justifyContent: "space-around", marginTop: "20px" }}>
-          <div style={{ textAlign: "center" }}>
-            {consentData._signatures?.patient && (
-              <img src={consentData._signatures.patient} alt="Patient" style={{ height: "50px", display: "block", margin: "0 auto 4px" }} />
-            )}
-            <div style={{ borderTop: "1px solid #999", paddingTop: "4px", minWidth: "120px", fontSize: "9px" }}>Patientin/Patient</div>
-          </div>
-          {!consentData.refused && (
-            <div style={{ textAlign: "center" }}>
-              {consentData._signatures?.doctor && (
-                <img src={consentData._signatures.doctor} alt="Arzt" style={{ height: "50px", display: "block", margin: "0 auto 4px" }} />
-              )}
-              <div style={{ borderTop: "1px solid #999", paddingTop: "4px", minWidth: "120px", fontSize: "9px" }}>Ärztin/Arzt</div>
-            </div>
+  // Build question rows
+  const questionRows = [];
+  template.questions.forEach((q, qi) => {
+    questionRows.push({ type: "q", num: qi + 1, label: q.label, answer: a[q.id] === true ? "Ja" : a[q.id] === false ? "Nein" : "–" });
+    if (a[q.id] && a[q.id + "_text"]) questionRows.push({ type: "detail", text: a[q.id + "_text"] });
+    if (q.subQuestion && a[q.id]) {
+      questionRows.push({ type: "sub", label: "Komplikationen?", answer: a["q13_komplikationen"] === true ? "Ja" : a["q13_komplikationen"] === false ? "Nein" : "–" });
+      if (a["q13_komplikationen"] && a["q13_komplikationen_text"]) questionRows.push({ type: "detail", text: a["q13_komplikationen_text"] });
+    }
+  });
+  let nextNum = template.questions.length + 1;
+  if (a.geschlecht === "w" && template.additionalQuestionsWomen) {
+    template.additionalQuestionsWomen.forEach(q => {
+      questionRows.push({ type: "q", num: nextNum++, label: q.label, answer: a[q.id] === true ? "Ja" : a[q.id] === false ? "Nein" : "–" });
+    });
+  }
+
+  const PageHeader = ({ pageNum }) => (
+    <div style={{ padding: "30px 44px 0 44px", marginBottom: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          {practice.logo && !practice.logoReplacesName && (
+            <img src={practice.logo} alt="Logo" style={{ maxHeight: "44px", maxWidth: "140px", objectFit: "contain", marginBottom: "4px", display: "block" }} />
           )}
+          {practice.logo && practice.logoReplacesName ? (
+            <img src={practice.logo} alt="Logo" style={{ maxHeight: "44px", maxWidth: "140px", objectFit: "contain", display: "block", marginBottom: "4px" }} />
+          ) : (
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "#222", marginBottom: "4px" }}>{practice.name || "Praxis"}</div>
+          )}
+          <div style={{ fontSize: "9.5px", color: "#444" }}>
+            <div>{practice.address1}</div>
+            <div>{practice.address2}</div>
+          </div>
         </div>
-        <div style={{ textAlign: "center", fontSize: "8px", color: "#888", marginTop: "8px" }}>
-          Unterschrieben am {new Date(consentData.signedAt).toLocaleString("de-DE")} · {practice.stadt || practice.ort || ""}
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: "9px", color: "#999", marginBottom: "2px" }}>Seite {pageNum} von {totalPages}</div>
+          <div style={{ fontSize: "12px", fontWeight: "700", color: "#222" }}>Aufklärungsbogen</div>
         </div>
-      </div>
-
-      {/* Footer */}
-      <div style={{ marginTop: "12px", fontSize: "7px", color: "#aaa", textAlign: "center" }}>
-        {template.reference} · Digitale Aufklärung via EPHIA · SHA-256: {consentData.pdfHash || "wird berechnet..."}
       </div>
     </div>
+  );
+
+  const PageFooter = () => (
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#888", borderTop: "1px solid #ccc", paddingTop: "8px", position: "absolute", bottom: "30px", left: "44px", right: "44px" }}>
+      <div>
+        {practice.phone && <div>{fmtPhone(practice.phone)}</div>}
+        {practice.email && <div>{practice.email}</div>}
+      </div>
+      <div style={{ textAlign: "center", fontSize: "7.5px", color: "#aaa" }}>
+        {consentData.pdfHash ? `SHA-256: ${consentData.pdfHash.substring(0, 16)}…` : ""}
+      </div>
+      <div style={{ textAlign: "right" }}>
+        {practice.bankName && <div>{practice.bankName}</div>}
+        {practice.iban && <div>IBAN: {practice.iban}</div>}
+        {practice.bic && <div>BIC: {practice.bic}</div>}
+      </div>
+    </div>
+  );
+
+  const sectionHtml = (sections) => sections.map((section, i) => (
+    <div key={i}>
+      <div style={h2Style}>{section.title}</div>
+      <div className="consent-section-html" style={bodyText} dangerouslySetInnerHTML={{ __html: section.html }} />
+    </div>
+  ));
+
+  const cssReset = <style>{`.consent-section-html p, .consent-section-html ul, .consent-section-html ol, .consent-section-html li, .consent-section-html div, .consent-section-html blockquote { margin-left: 0; padding-left: 0; } .consent-section-html p { margin-top: 0.4em; margin-bottom: 0.4em; }`}</style>;
+
+  // ── Group A: Template name + sections before Erfolgsaussichten ──
+  const ContentA = () => (
+    <div style={{ ...baseFont, width: "calc(210mm - 88px)" }}>
+      <div style={{ fontWeight: "700", fontSize: "13px", marginBottom: "12px", color: "#222" }}>{template.name}</div>
+      {sectionHtml(sectionsGroupA)}
+      {cssReset}
+    </div>
+  );
+
+  // ── Group B: Erfolgsaussichten + remaining sections + questionnaire ──
+  const ContentB = () => (
+    <div style={{ ...baseFont, width: "calc(210mm - 88px)" }}>
+      {sectionHtml(sectionsGroupB)}
+      {cssReset}
+
+      <div style={h2Style}>Fragebogen (Anamnese)</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px 12px", fontSize: "10px", marginBottom: "12px", padding: "8px 10px", background: "#f8f8f8", borderRadius: "4px" }}>
+        <div>Alter: <strong>{a.alter || "–"}</strong></div>
+        <div>Geschlecht: <strong>{a.geschlecht === "w" ? "Weiblich" : a.geschlecht === "m" ? "Männlich" : a.geschlecht === "d" ? "Divers" : "–"}</strong></div>
+        <div>Größe: <strong>{a.groesse || "–"}</strong> cm</div>
+        <div>Gewicht: <strong>{a.gewicht || "–"}</strong> kg</div>
+      </div>
+      <table style={{ width: "100%", fontSize: "9.5px", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left", padding: "4px 6px 4px 0", fontWeight: "600", borderBottom: "1.5px solid #222", width: "24px" }}>#</th>
+            <th style={{ textAlign: "left", padding: "4px 6px", fontWeight: "600", borderBottom: "1.5px solid #222" }}>Frage</th>
+            <th style={{ textAlign: "center", padding: "4px 6px", fontWeight: "600", borderBottom: "1.5px solid #222", width: "50px" }}>Antwort</th>
+          </tr>
+        </thead>
+        <tbody>
+          {questionRows.map((row, i) => {
+            if (row.type === "q") return (
+              <tr key={i} style={{ borderBottom: "0.5px solid #e5e5e5" }}>
+                <td style={{ padding: "4px 6px 4px 0", verticalAlign: "top", color: "#888" }}>{row.num || ""}</td>
+                <td style={{ padding: "4px 6px" }}>{row.label}</td>
+                <td style={{ padding: "4px 6px", textAlign: "center", fontWeight: "600" }}>{row.answer}</td>
+              </tr>
+            );
+            if (row.type === "sub") return (
+              <tr key={i} style={{ borderBottom: "0.5px solid #e5e5e5", background: "#fafafa" }}>
+                <td style={{ padding: "3px 6px 3px 0" }}></td>
+                <td style={{ padding: "3px 6px", fontSize: "9px", color: "#555" }}>↳ {row.label}</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", fontWeight: "600", fontSize: "9px" }}>{row.answer}</td>
+              </tr>
+            );
+            if (row.type === "detail") return (
+              <tr key={i} style={{ borderBottom: "0.5px solid #e5e5e5" }}>
+                <td></td>
+                <td colSpan={2} style={{ padding: "2px 6px", fontStyle: "italic", color: "#666", fontSize: "9px" }}>→ {row.text}</td>
+              </tr>
+            );
+            return null;
+          })}
+        </tbody>
+      </table>
+      {consentData.doctorNotes && (
+        <div style={{ marginTop: "14px" }}>
+          <div style={h3Style}>Vermerke der Ärztin/des Arztes</div>
+          <div style={{ fontSize: "9.5px", whiteSpace: "pre-wrap", padding: "6px 8px", border: "1px solid #ddd", borderRadius: "4px", background: "#fafafa", minHeight: "15mm" }}>{consentData.doctorNotes}</div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Group C: Vorgesehene Behandlung + Consent/Refusal + Signatures ──
+  const ContentC = () => (
+    <div style={{ ...baseFont, width: "calc(210mm - 88px)" }}>
+      <div style={{ marginBottom: "16px" }}>
+        <div style={h2Style}>Vorgesehene Behandlung</div>
+        <div style={bodyText}>{template.plannedTreatment}</div>
+        <div style={{ fontSize: "10px", marginTop: "6px" }}>
+          <strong>Vorgesehener Behandlungsbeginn:</strong> {datumStr}
+        </div>
+        {ortStr && (
+          <div style={{ fontSize: "10px", marginTop: "4px" }}>
+            <strong>Ort:</strong> {ortStr}
+          </div>
+        )}
+      </div>
+      <div style={{ border: "1.5px solid #222", borderRadius: "4px", padding: "14px 16px", marginBottom: "20px" }}>
+        <div style={{ fontSize: "13px", fontWeight: "700", color: "#222", marginBottom: "8px" }}>{consentData.refused ? "Ablehnung der Behandlung" : "Einwilligungserklärung"}</div>
+        <div style={{ ...bodyText, whiteSpace: "pre-line" }}>
+          {consentData.refused ? template.refusalText : template.consentText}
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-around", marginTop: "30px" }}>
+        <div style={{ textAlign: "center", minWidth: "160px" }}>
+          {consentData._signatures?.patient && (
+            <img src={consentData._signatures.patient} alt="Patient" style={{ height: "55px", display: "block", margin: "0 auto 6px" }} />
+          )}
+          <div style={{ borderTop: "1.5px solid #222", paddingTop: "6px", fontSize: "10px" }}>
+            <div style={{ fontWeight: "600" }}>{patient.vorname} {patient.nachname}</div>
+            <div style={{ fontSize: "9px", color: "#888" }}>Patient:in</div>
+          </div>
+        </div>
+        {!consentData.refused && (
+          <div
+            style={{ textAlign: "center", minWidth: "160px", ...(onDoctorSign && !consentData._signatures?.doctor ? { cursor: "pointer", borderRadius: "6px", padding: "8px", border: "2px dashed #93c5fd", background: "#eff6ff" } : {}) }}
+            onClick={onDoctorSign && !consentData._signatures?.doctor ? onDoctorSign : undefined}
+            title={onDoctorSign && !consentData._signatures?.doctor ? "Klicken zum Unterschreiben" : undefined}
+          >
+            {consentData._signatures?.doctor ? (
+              <img src={consentData._signatures.doctor} alt="Arzt" style={{ height: "55px", display: "block", margin: "0 auto 6px" }} />
+            ) : onDoctorSign ? (
+              <div style={{ height: "55px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "6px" }}>
+                <span style={{ fontSize: "10px", color: "#3b82f6" }}>Hier unterschreiben</span>
+              </div>
+            ) : null}
+            <div style={{ borderTop: "1.5px solid #222", paddingTop: "6px", fontSize: "10px" }}>
+              <div style={{ fontWeight: "600" }}>{practice.name || "Ärzt:in"}</div>
+              <div style={{ fontSize: "9px", color: "#888" }}>Ärzt:in</div>
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{ textAlign: "center", fontSize: "9px", color: "#888", marginTop: "16px" }}>
+        {consentData.refused ? "Abgelehnt" : "Unterschrieben"} am {new Date(consentData.signedAt).toLocaleString("de-DE")}{ortStr ? ` · ${ortStr}` : ""}
+      </div>
+    </div>
+  );
+
+  // Helper to render clipped pages for a content group
+  const renderPages = (ContentComp, groupPages, pageOffset) =>
+    Array.from({ length: groupPages }).map((_, i) => (
+      <div key={pageOffset + i} data-pdf-page={pageOffset + i + 1} style={pageStyle}>
+        <PageHeader pageNum={pageOffset + i + 1} />
+        <div style={{ height: CONTENT_H, overflow: "hidden", padding: "0 44px" }}>
+          <div style={{ marginTop: -(i * CONTENT_H) }}>
+            <ContentComp />
+          </div>
+        </div>
+        <PageFooter />
+      </div>
+    ));
+
+  return (
+    <>
+      {/* Hidden measurement divs */}
+      <div ref={measRefA} style={hiddenMeas}><ContentA /></div>
+      <div ref={measRefB} style={hiddenMeas}><ContentB /></div>
+      <div ref={measRefC} style={hiddenMeas}><ContentC /></div>
+
+      {/* Visible A4 pages */}
+      <div id="consent-form-pdf-target" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        {renderPages(ContentA, pagesA, 0)}
+        {renderPages(ContentB, pagesB, pagesA)}
+        {renderPages(ContentC, pagesC, pagesA + pagesB)}
+      </div>
+    </>
   );
 }
 
@@ -3567,7 +3763,7 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
   const hvInvoices = matchingInvoices.filter((inv) => !inv._standalone && !inv._consentForm && (inv.hasHV != null ? inv.hasHV : (inv.lineItems || []).some((it) => it.steigerung != null && it.steigerung > 3.5)));
   const consentInvoices = matchingInvoices.filter((inv) => inv._consentForm);
 
-  const [tab, setTab] = React.useState("behandlungen");
+  const [tab, setTab] = React.useState("consent");
   const [newTreatmentMarkers, setNewTreatmentMarkers] = React.useState([]);
   const [newTreatmentInvoiceId, setNewTreatmentInvoiceId] = React.useState(null);
   const [newTreatmentEinheit, setNewTreatmentEinheit] = React.useState("SE");
@@ -3669,73 +3865,78 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
           const inputCls = "border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400";
           return (
             <div>
-              {/* Name + single edit icon */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {isEditing ? (
-                  <>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <input className={inputCls + " w-28"} value={editData.vorname} placeholder="Vorname" onChange={(e) => setEditData({ ...editData, vorname: e.target.value })} autoFocus />
                     <input className={inputCls + " w-28"} value={editData.nachname} placeholder="Nachname" onChange={(e) => setEditData({ ...editData, nachname: e.target.value })} />
-                  </>
-                ) : (
-                  <>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">E-Mail</label>
+                      <input type="email" className={inputCls + " w-full mt-1"} value={editData.email} onChange={(e) => setEditData({ ...editData, email: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Telefon</label>
+                      <input type="tel" className={inputCls + " w-full mt-1"} value={editData.phone} placeholder="+49 123 456789" onChange={(e) => setEditData({ ...editData, phone: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Straße</label>
+                      <input className={inputCls + " w-full mt-1"} value={editData.address1} placeholder="Musterstraße 5" onChange={(e) => setEditData({ ...editData, address1: e.target.value })} />
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="w-20">
+                        <label className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">PLZ</label>
+                        <input className={inputCls + " w-full mt-1"} value={parsePlzOrt(editData.address2).plz} placeholder="PLZ" maxLength={5} inputMode="numeric" onChange={(e) => { const v = e.target.value; const { ort } = parsePlzOrt(editData.address2); setEditData({ ...editData, address2: combinePlzOrt(v, ort) }); if (v.length === 5 && !ort && (!editData.country || editData.country === "Deutschland")) lookupPlz(v).then(city => { if (city) { setEditData(d => ({ ...d, address2: combinePlzOrt(v, parsePlzOrt(d.address2).ort || city) })); } }); }} />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Ort</label>
+                        <input data-ort-field className={inputCls + " w-full mt-1"} value={parsePlzOrt(editData.address2).ort} placeholder="Ort" onChange={(e) => { const { plz } = parsePlzOrt(editData.address2); setEditData({ ...editData, address2: combinePlzOrt(plz, e.target.value) }); }} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Land</label>
+                      <select className={inputCls + " w-full mt-1 bg-white"} value={editData.country} onChange={(e) => setEditData({ ...editData, country: e.target.value })}>
+                        {PRIORITY_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        <option disabled>────────────</option>
+                        {OTHER_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="px-3 py-1.5 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition" onClick={saveAll}>Speichern</button>
+                    <button className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={cancelAll}>Abbrechen</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {/* Name + edit */}
+                  <div className="flex items-center gap-2 mb-3">
                     <h2 className="text-base font-semibold text-gray-800">{patient.vorname} {patient.nachname}</h2>
-                    <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50 transition" title="Patient:in bearbeiten" onClick={startEdit}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    <button className="p-1 rounded text-gray-300 hover:text-blue-500 transition" title="Patient:in bearbeiten" onClick={startEdit}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                     </button>
-                  </>
-                )}
-              </div>
-              <div className="mt-1.5 space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-16">E-Mail</span>
-                  {isEditing ? (
-                    <input type="email" className={inputCls + " w-48"} value={editData.email} onChange={(e) => setEditData({ ...editData, email: e.target.value })} />
-                  ) : (
-                    email ? <a href={`mailto:${email}`} className="text-xs text-blue-500 hover:text-blue-700 underline">{email}</a> : <span className="text-xs text-gray-600">—</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-16">Telefon</span>
-                  {isEditing ? (
-                    <input type="tel" className={inputCls + " w-48"} value={editData.phone} placeholder="+49 123 456789" onChange={(e) => setEditData({ ...editData, phone: e.target.value })} />
-                  ) : (
-                    rawData.phone ? (
+                  </div>
+                  {/* Data grid */}
+                  <div className="grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+                    <span className="text-gray-400">E-Mail</span>
+                    <span>{email ? <a href={`mailto:${email}`} className="text-blue-500 hover:text-blue-700">{email}</a> : <span className="text-gray-400">—</span>}</span>
+                    <span className="text-gray-400">Telefon</span>
+                    <span className="text-gray-600">{rawData.phone ? (
                       <>
-                        <a href={`tel:${rawData.phone.replace(/[^\d+]/g, "")}`} className="sm:hidden text-xs text-blue-500 hover:text-blue-700">{fmtPhone(rawData.phone)}</a>
-                        <span className="hidden sm:inline text-xs text-gray-600">{fmtPhone(rawData.phone)}</span>
+                        <a href={`tel:${rawData.phone.replace(/[^\d+]/g, "")}`} className="sm:hidden text-blue-500 hover:text-blue-700">{fmtPhone(rawData.phone)}</a>
+                        <span className="hidden sm:inline">{fmtPhone(rawData.phone)}</span>
                       </>
-                    ) : <span className="text-xs text-gray-600">—</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-16">Adresse</span>
-                  {isEditing ? (
-                    <>
-                      <input className={inputCls + " w-40"} value={editData.address1} placeholder="Musterstraße 5" onChange={(e) => setEditData({ ...editData, address1: e.target.value })} />
-                      <input className={inputCls + " w-16"} value={parsePlzOrt(editData.address2).plz} placeholder="PLZ" maxLength={5} inputMode="numeric" onChange={(e) => { const v = e.target.value; const { ort } = parsePlzOrt(editData.address2); setEditData({ ...editData, address2: combinePlzOrt(v, ort) }); if (v.length === 5 && !ort && (!editData.country || editData.country === "Deutschland")) lookupPlz(v).then(city => { if (city) { setEditData(d => ({ ...d, address2: combinePlzOrt(v, parsePlzOrt(d.address2).ort || city) })); const ortEl = e.target.nextElementSibling; flashOrtField(ortEl); } }); }} />
-                      <input data-ort-field className={inputCls + " w-28"} value={parsePlzOrt(editData.address2).ort} placeholder="Ort" onChange={(e) => { const { plz } = parsePlzOrt(editData.address2); setEditData({ ...editData, address2: combinePlzOrt(plz, e.target.value) }); }} />
-                    </>
-                  ) : (
-                    <span className="text-xs text-gray-600">{rawData.address1 ? `${rawData.address1}, ${rawData.address2 || ""}` : "—"}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-16">Land</span>
-                  {isEditing ? (
-                    <select className={inputCls + " bg-white"} value={editData.country} onChange={(e) => setEditData({ ...editData, country: e.target.value })}>
-                      {PRIORITY_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                      <option disabled>────────────</option>
-                      {OTHER_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  ) : (
-                    <span className="text-xs text-gray-600">{rawData.country || "Deutschland"}</span>
-                  )}
-                </div>
-              </div>
-              {isEditing && (
-                <div className="flex items-center gap-2 mt-2">
-                  <button className="px-3 py-1.5 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition" onClick={saveAll}>Speichern</button>
-                  <button className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={cancelAll}>Abbrechen</button>
+                    ) : <span className="text-gray-400">—</span>}</span>
+                    <span className="text-gray-400">Adresse</span>
+                    <span className="text-gray-600">{rawData.address1 ? `${rawData.address1}, ${rawData.address2 || ""}` : "—"}</span>
+                    <span className="text-gray-400">Land</span>
+                    <span className="text-gray-600">{rawData.country || "Deutschland"}</span>
+                    {rawData.geschlecht && <><span className="text-gray-400">Geschlecht</span><span className="text-gray-600">{rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "Männlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht}</span></>}
+                    {rawData.alter && <><span className="text-gray-400">Alter</span><span className="text-gray-600">{rawData.alter} Jahre</span></>}
+                    {rawData.groesse && <><span className="text-gray-400">Größe</span><span className="text-gray-600">{rawData.groesse} cm</span></>}
+                    {rawData.gewicht && <><span className="text-gray-400">Gewicht</span><span className="text-gray-600">{rawData.gewicht} kg</span></>}
+                  </div>
                 </div>
               )}
             </div>
@@ -3780,17 +3981,17 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
       <div className="relative border-b border-gray-100">
         <div className="py-2 flex items-center gap-0 overflow-x-auto hide-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
           <div className="flex-shrink-0 w-3 sm:w-5"></div>
-          <button className={tabBtnCls(tab === "behandlungen") + " whitespace-nowrap flex-shrink-0"} onClick={() => setTab("behandlungen")}>
-            Behandlungen ({matchingInvoices.filter(inv => inv.treatmentDoc).length})
-          </button>
-          <button className={tabBtnCls(tab === "rechnungen") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("rechnungen")}>
-            Rechnungen ({rechnungsInvoices.length})
+          <button className={tabBtnCls(tab === "consent") + " whitespace-nowrap flex-shrink-0"} onClick={() => setTab("consent")}>
+            <span className="sm:hidden">Aufkl. ({consentInvoices.length})</span><span className="hidden sm:inline">Aufklärungsbögen ({consentInvoices.length})</span>
           </button>
           <button className={tabBtnCls(tab === "hv") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("hv")}>
             <span className="sm:hidden">HV ({hvInvoices.length})</span><span className="hidden sm:inline">Honorarvereinbarungen ({hvInvoices.length})</span>
           </button>
-          <button className={tabBtnCls(tab === "consent") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("consent")}>
-            <span className="sm:hidden">Aufkl. ({consentInvoices.length})</span><span className="hidden sm:inline">Aufklärung ({consentInvoices.length})</span>
+          <button className={tabBtnCls(tab === "behandlungen") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("behandlungen")}>
+            Behandlungen ({matchingInvoices.filter(inv => inv.treatmentDoc).length})
+          </button>
+          <button className={tabBtnCls(tab === "rechnungen") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("rechnungen")}>
+            Rechnungen ({rechnungsInvoices.length})
           </button>
           <div className="flex-shrink-0 w-3 sm:w-5"></div>
         </div>
@@ -3949,7 +4150,7 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
         <>
         {onStartConsent && (
           <div className="px-3 sm:px-5 py-3 border-b border-gray-50">
-            <button className="text-xs text-blue-500 hover:text-blue-700 font-medium transition" onClick={() => onStartConsent(patient)}>+ Aufklärungsbogen</button>
+            <button className="text-xs text-blue-500 hover:text-blue-700 font-medium transition" onClick={() => onStartConsent(patient)}>+ Neuer Aufklärungsbogen erstellen</button>
           </div>
         )}
         {consentInvoices.length === 0 ? (
@@ -3975,14 +4176,21 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
                 const templateName = tpl ? tpl.title.replace("Aufklärungsbogen — ", "") : cd.templateId || "–";
                 const createdAt = inv._createdAt ? fmtDate(inv._createdAt.slice(0, 10)) : (inv.savedAt ? fmtDate(inv.savedAt.slice(0, 10)) : "–");
                 const isRefused = cd.refused;
+                const hasPatientSig = !!cd._signatures?.patient;
+                const hasDoctorSig = !!cd._signatures?.doctor;
+                const consentStatus = isRefused ? "refused" : (hasPatientSig && hasDoctorSig) ? "complete" : hasPatientSig ? "pending_doctor" : "draft";
                 return (
                   <tr key={inv.id} className="border-b border-gray-50 hover:bg-blue-50 transition cursor-pointer" onClick={() => onViewConsent && onViewConsent(inv)}>
                     <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-700">{templateName}</span></td>
                     <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500">{fmtDate(inv.invoiceMeta.datum)}</span></td>
                     <td className="px-3 py-3 align-middle">
-                      {isRefused
+                      {consentStatus === "refused"
                         ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 rounded">Abgelehnt</span>
-                        : <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Unterschrieben</span>
+                        : consentStatus === "complete"
+                        ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Vollständig</span>
+                        : consentStatus === "pending_doctor"
+                        ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Arzt fehlt</span>
+                        : <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">Entwurf</span>
                       }
                     </td>
                     <td className="hidden sm:table-cell px-3 py-3 align-middle"><span className="text-xs text-gray-400">{createdAt}</span></td>
@@ -4737,7 +4945,7 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
 
 // ═══════════════════ Invoice List View ═══════════════════
 
-function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewTD, onDelete, onPrint, onPrintHV, onPrintTD, onDownload, onDownloadHV, onDownloadTD, onBack, onUpdateInvoice, patients, onNewForPatient, onNewHVForPatient }) {
+function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewTD, onDelete, onPrint, onPrintHV, onPrintTD, onDownload, onDownloadHV, onDownloadTD, onDownloadConsent, onBack, onUpdateInvoice, patients, onNewForPatient, onNewHVForPatient }) {
   const [tab, setTab] = React.useState("rechnungen");
   const [sortKey, setSortKey] = React.useState(null);
   const [sortDir, setSortDir] = React.useState("asc");
@@ -5187,6 +5395,9 @@ function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewT
                 const templateName = tpl ? tpl.title.replace("Aufklärungsbogen — ", "").substring(0, 30) : cd.templateId || "–";
                 const createdAt = inv._createdAt ? fmtDate(inv._createdAt.slice(0, 10)) : (inv.savedAt ? fmtDate(inv.savedAt.slice(0, 10)) : "–");
                 const isRefused = cd.refused;
+                const hasPatientSig = !!cd._signatures?.patient;
+                const hasDoctorSig = !!cd._signatures?.doctor;
+                const consentStatus = isRefused ? "refused" : (hasPatientSig && hasDoctorSig) ? "complete" : hasPatientSig ? "pending_doctor" : "draft";
                 return (
                   <tr key={inv.id} className="border-b border-gray-50 hover:bg-blue-50 transition cursor-pointer" onClick={() => onView(inv)}>
                     <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-700">{vorname}</span></td>
@@ -5194,15 +5405,19 @@ function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewT
                     <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500">{templateName}</span></td>
                     <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500">{fmtDate(inv.invoiceMeta.datum)}</span></td>
                     <td className="px-3 py-3 align-middle">
-                      {isRefused
+                      {consentStatus === "refused"
                         ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 rounded">Abgelehnt</span>
-                        : <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Unterschrieben</span>
+                        : consentStatus === "complete"
+                        ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Vollständig</span>
+                        : consentStatus === "pending_doctor"
+                        ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Arzt fehlt</span>
+                        : <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">Entwurf</span>
                       }
                     </td>
                     <td className="px-3 py-3 align-middle"><span className="text-xs text-gray-400">{createdAt}</span></td>
                     <td className="px-5 py-3 text-right align-middle" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownload(inv)}>
+                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownloadConsent && onDownloadConsent(inv)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                         </button>
                         <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
@@ -5306,8 +5521,10 @@ export default function EphiaInvoice() {
   const [confirmDeletePatient, setConfirmDeletePatient] = useState(null);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [showConsentDoctorSign, setShowConsentDoctorSign] = useState(false);
   const [consentPatient, setConsentPatient] = useState(null); // patient for active consent flow
   const [consentTemplate, setConsentTemplate] = useState(null); // active consent template
+  const [consentWarningPatient, setConsentWarningPatient] = useState(null); // patient pending consent warning confirmation
   const [invoices, setInvoices] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -6484,40 +6701,22 @@ export default function EphiaInvoice() {
       _kleinunternehmer: false,
       savedAt: new Date().toISOString(),
     };
-    // Generate PDF + SHA-256 hash
-    try {
-      // We need to briefly render the preview to capture it
-      setViewingInvoice(entry);
-      await new Promise(r => setTimeout(r, 300));
-      const el = document.getElementById("consent-form-pdf-target");
-      if (el) {
-        // Make visible if hidden
-        const hiddenParents = [];
-        let node = el;
-        while (node && node !== document.body) {
-          if (window.getComputedStyle(node).display === "none") {
-            hiddenParents.push({ node, prev: node.style.cssText });
-            node.style.cssText += ";display:block !important;position:absolute !important;left:-9999px !important;top:0 !important;";
-          }
-          node = node.parentElement;
-        }
-        try {
-          const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#fff" });
-          const imgData = canvas.toDataURL("image/png");
-          const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-          const pdfW = pdf.internal.pageSize.getWidth();
-          const pdfH = pdf.internal.pageSize.getHeight();
-          pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
-          const pdfArrayBuffer = pdf.output("arraybuffer");
+    // Only generate PDF hash if both signatures are present (document is complete)
+    const hasBothSigs = entry.consentData._signatures?.patient && entry.consentData._signatures?.doctor;
+    if (hasBothSigs) {
+      try {
+        setViewingInvoice(entry);
+        await new Promise(r => setTimeout(r, 300));
+        const result = await generateMultiPagePDF("consent-form-pdf-target");
+        if (result) {
+          const pdfArrayBuffer = result.pdf.output("arraybuffer");
           const hashBuffer = await crypto.subtle.digest("SHA-256", pdfArrayBuffer);
           const hashArray = Array.from(new Uint8Array(hashBuffer));
           const pdfHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
           entry.consentData.pdfHash = pdfHash;
-        } finally {
-          hiddenParents.forEach(({ node: n, prev }) => { n.style.cssText = prev; });
         }
-      }
-    } catch (e) { console.error("Consent PDF hash error:", e); }
+      } catch (e) { console.error("Consent PDF hash error:", e); }
+    }
     // Persist to Supabase with E2EE
     if (session) {
       try {
@@ -6531,6 +6730,46 @@ export default function EphiaInvoice() {
         entry._createdAt = created.created_at || new Date().toISOString();
       } catch (e) { console.error("Failed to save consent form:", e); }
     }
+    // Auto-sync demographics from consent form to patient profile
+    try {
+      const demoFields = {};
+      if (consentData.answers) {
+        if (consentData.answers.alter) demoFields.alter = consentData.answers.alter;
+        if (consentData.answers.groesse) demoFields.groesse = consentData.answers.groesse;
+        if (consentData.answers.gewicht) demoFields.gewicht = consentData.answers.gewicht;
+        if (consentData.answers.geschlecht) demoFields.geschlecht = consentData.answers.geschlecht;
+      }
+      if (Object.keys(demoFields).length > 0 && session && currentMEK && consentPatient._raw) {
+        const raw = consentPatient._raw;
+        const existingData = (typeof raw.data === "object" && raw.data) ? raw.data : {};
+        const updatedPatientData = { ...existingData, ...demoFields };
+        const newPatientHash = await computePatientHash(getPatientIdentifier(updatedPatientData), currentMEK);
+        const { ciphertext, iv } = await encryptData(updatedPatientData, currentMEK);
+        await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${raw.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Prefer": "return=representation" },
+          body: JSON.stringify({ data: ciphertext, iv, patient_hash: newPatientHash, encryption_version: 1 }),
+        });
+        // Reload patients to reflect changes
+        const patientRecords = await supabaseFetchPatients(session.access_token, user.id);
+        const decryptedPatients = [];
+        for (const rec of patientRecords) {
+          let pd = rec.data;
+          if (rec.encryption_version === 1 && rec.iv && currentMEK) {
+            try { pd = await decryptData(rec.data, rec.iv, currentMEK); } catch (e) { continue; }
+          }
+          decryptedPatients.push({ ...rec, data: pd });
+        }
+        setPatients(decryptedPatients);
+        // Update selectedPatient
+        const updated = decryptedPatients.find(p => p.id === raw.id);
+        if (updated) {
+          const ud = (typeof updated?.data === "object" && updated?.data) || {};
+          setSelectedPatient({ vorname: ud.vorname || "", nachname: ud.nachname || "", email: ud.email || "", _raw: updated });
+        }
+      }
+    } catch (e) { console.error("Error syncing consent demographics to patient:", e); }
+
     setInvoices(prev => [entry, ...prev]);
     setViewingInvoice(entry);
     setPreviewTab("consent");
@@ -6696,6 +6935,117 @@ export default function EphiaInvoice() {
       const pdfH = pdf.internal.pageSize.getHeight();
       pdf.addPage();
       pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+    } finally {
+      hiddenParents.forEach(({ node: n, prev }) => { n.style.cssText = prev; });
+    }
+  };
+
+  // Generate a multi-page A4 PDF by capturing each [data-pdf-page] element as a separate page,
+  // or by flowing content across pages with header/footer when data-pdf-mode="flow" is set.
+  const generateMultiPagePDF = async (elementId) => {
+    let el = document.getElementById(elementId);
+    if (!el) return null;
+    const hiddenParents = [];
+    let node = el;
+    while (node && node !== document.body) {
+      if (window.getComputedStyle(node).display === "none") {
+        hiddenParents.push({ node, prev: node.style.cssText });
+        node.style.cssText += ";display:block !important;position:absolute !important;left:-9999px !important;top:0 !important;";
+      }
+      node = node.parentElement;
+    }
+    try {
+      // ── Flow mode: slice one tall content canvas across pages with header/footer ──
+      if (el.dataset.pdfMode === "flow") {
+        const headerEl = el.querySelector("[data-pdf-header]");
+        const footerEl = el.querySelector("[data-pdf-footer]");
+        const contentEl = el.querySelector("[data-pdf-content]");
+        if (!contentEl) return null;
+
+        // Make hidden templates visible for capture
+        const prevH = headerEl.style.cssText;
+        const prevF = footerEl.style.cssText;
+        headerEl.style.cssText = "position:absolute;left:-9999px;top:0;width:210mm;padding:30px 44px 0 44px;background:white;box-sizing:border-box;display:block;";
+        footerEl.style.cssText = "position:absolute;left:-9999px;top:0;width:210mm;padding:0 44px 30px 44px;background:white;box-sizing:border-box;display:block;";
+
+        const scale = 2;
+        const headerCanvas = await html2canvas(headerEl, { scale, useCORS: true, backgroundColor: "#fff" });
+        const footerCanvas = await html2canvas(footerEl, { scale, useCORS: true, backgroundColor: "#fff" });
+        const contentCanvas = await html2canvas(contentEl, { scale, useCORS: true, backgroundColor: "#fff" });
+
+        headerEl.style.cssText = prevH;
+        footerEl.style.cssText = prevF;
+
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const pdfW = pdf.internal.pageSize.getWidth(); // 210mm
+        const pdfH = pdf.internal.pageSize.getHeight(); // 297mm
+
+        // Convert canvas pixel heights to mm (at our capture scale, the element width = 210mm)
+        const pxPerMm = contentCanvas.width / 210;
+        const headerHmm = headerCanvas.height / pxPerMm;
+        const footerHmm = footerCanvas.height / pxPerMm;
+        const contentHmm = contentCanvas.height / pxPerMm;
+        const availablePerPage = pdfH - headerHmm - footerHmm;
+        const totalPdfPages = Math.ceil(contentHmm / availablePerPage);
+
+        for (let p = 0; p < totalPdfPages; p++) {
+          if (p > 0) pdf.addPage();
+
+          // Draw header
+          const headerImg = headerCanvas.toDataURL("image/png");
+          pdf.addImage(headerImg, "PNG", 0, 0, pdfW, headerHmm);
+
+          // Draw page number over header placeholder
+          pdf.setFontSize(7);
+          pdf.setTextColor(153, 153, 153);
+          pdf.text(`Seite ${p + 1} von ${totalPdfPages}`, pdfW - 44, 34, { align: "right" });
+
+          // Draw content slice
+          const sliceTopPx = p * availablePerPage * pxPerMm;
+          const sliceHeightPx = Math.min(availablePerPage * pxPerMm, contentCanvas.height - sliceTopPx);
+          const sliceHmm = sliceHeightPx / pxPerMm;
+
+          // Create a temporary canvas for this slice
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = contentCanvas.width;
+          sliceCanvas.height = Math.ceil(sliceHeightPx);
+          const ctx = sliceCanvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+          ctx.drawImage(contentCanvas, 0, sliceTopPx, contentCanvas.width, sliceHeightPx, 0, 0, contentCanvas.width, sliceHeightPx);
+
+          const sliceImg = sliceCanvas.toDataURL("image/png");
+          pdf.addImage(sliceImg, "PNG", 0, headerHmm, pdfW, sliceHmm);
+
+          // Draw footer
+          const footerImg = footerCanvas.toDataURL("image/png");
+          pdf.addImage(footerImg, "PNG", 0, pdfH - footerHmm, pdfW, footerHmm);
+        }
+
+        return { pdf, blob: pdf.output("blob") };
+      }
+
+      // ── Page mode: each [data-pdf-page] is a separate page ──
+      const pages = el.querySelectorAll("[data-pdf-page]");
+      if (!pages || pages.length === 0) {
+        const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#fff" });
+        const imgData = canvas.toDataURL("image/png");
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const pdfW = pdf.internal.pageSize.getWidth();
+        const pdfH = pdf.internal.pageSize.getHeight();
+        pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+        return { pdf, blob: pdf.output("blob") };
+      }
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      for (let i = 0; i < pages.length; i++) {
+        if (i > 0) pdf.addPage();
+        const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: "#fff" });
+        const imgData = canvas.toDataURL("image/png");
+        pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+      }
+      return { pdf, blob: pdf.output("blob") };
     } finally {
       hiddenParents.forEach(({ node: n, prev }) => { n.style.cssText = prev; });
     }
@@ -6968,9 +7318,11 @@ export default function EphiaInvoice() {
         return (
           <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
             <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">{delInv?._hvOnly ? "Honorarvereinbarung löschen?" : "Rechnung löschen?"}</h3>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">{delInv?._consentForm ? "Aufklärungsbogen löschen?" : delInv?._hvOnly ? "Honorarvereinbarung löschen?" : "Rechnung löschen?"}</h3>
               <p className="text-xs text-gray-500 mb-4">
-                {delHasHV
+                {delInv?._consentForm
+                  ? "Möchtest Du diesen Aufklärungsbogen wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+                  : delHasHV
                   ? `Rechnung Nr. ${delInv?.invoiceMeta.nummer} hat eine zugehörige Honorarvereinbarung. Möchtest Du beides löschen oder nur die Rechnung löschen und die HV behalten?`
                   : `Möchtest Du ${delInv?._hvOnly ? "diese Honorarvereinbarung" : `Rechnung Nr. ${delInv?.invoiceMeta.nummer}`} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
                 }
@@ -6986,6 +7338,31 @@ export default function EphiaInvoice() {
           </div>
         );
       })()}
+
+      {/* Consent form risk warning modal */}
+      {consentWarningPatient && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md">
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86l-8.6 14.86A1 1 0 002.54 20h18.92a1 1 0 00.85-1.28l-8.6-14.86a1 1 0 00-1.72 0z" /></svg>
+              <h3 className="text-sm font-semibold text-gray-800">Wichtiger Hinweis</h3>
+            </div>
+            <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+              Dieser Aufklärungsbogen wurde nach bestem Wissen erstellt, kann jedoch keine rechtliche Garantie auf Vollständigkeit oder Rechtskonformität bieten. Die Verwendung erfolgt auf eigenes Risiko. Bitte prüfe, ob der Bogen den Anforderungen Deiner Praxis und der geltenden Rechtslage entspricht, und passe ihn gegebenenfalls an. EPHIA übernimmt keine Haftung für etwaige rechtliche Folgen.
+            </p>
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+              <button className="px-3 py-2 sm:py-1.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 w-full sm:w-auto" onClick={() => setConsentWarningPatient(null)}>Abbrechen</button>
+              <button className="px-3 py-2 sm:py-1.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700 font-medium w-full sm:w-auto" onClick={() => {
+                const p = consentWarningPatient;
+                setConsentWarningPatient(null);
+                setConsentPatient(p);
+                setConsentTemplate(CONSENT_TEMPLATES[0]);
+                setPage("consent");
+              }}>Verstanden, fortfahren</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmDeletePatient && (() => {
         const pEmail = (confirmDeletePatient.data?.email || confirmDeletePatient.email || "").toLowerCase();
@@ -7720,6 +8097,28 @@ export default function EphiaInvoice() {
             onDownload={handleDownloadInvoice}
             onDownloadHV={handleDownloadHV}
             onDownloadTD={handleDownloadTD}
+            onDownloadConsent={(inv) => {
+              setViewingInvoice(inv);
+              setPreviewTab("consent");
+              setPage("preview");
+              setTimeout(async () => {
+                const tpl = CONSENT_TEMPLATES.find(t => t.id === inv.consentData?.templateId);
+                const templateName = tpl ? tpl.title.replace("Aufklärungsbogen — ", "").replace(/\s+/g, "_") : "Aufklaerung";
+                const patName = [inv.patient?.vorname, inv.patient?.nachname].filter(Boolean).join("_") || "Patient";
+                const filename = `Aufklaerung_${templateName}_${patName}_${inv.invoiceMeta.datum}.pdf`;
+                const result = await generateMultiPagePDF("consent-form-pdf-target");
+                if (result) {
+                  const blob = result.pdf.output("blob");
+                  const file = new File([blob], filename, { type: "application/pdf" });
+                  const isMobile = window.innerWidth < 640;
+                  if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try { await navigator.share({ files: [file], title: filename }); } catch (e) { if (e.name !== "AbortError") result.pdf.save(filename); }
+                  } else { result.pdf.save(filename); }
+                }
+                setPage("invoices");
+                setViewingInvoice(null);
+              }, 500);
+            }}
             onBack={() => setPage("patients")}
             patients={patients}
             onNewForPatient={handleNewForPatient}
@@ -7956,12 +8355,11 @@ export default function EphiaInvoice() {
             onCreateInvoice={(p) => handleNewForPatient(p)}
             onNewHV={() => handleNewHVForPatient(selectedPatient)}
             onStartConsent={(p) => {
-              setConsentPatient(p);
-              setConsentTemplate(CONSENT_TEMPLATES[0]);
-              setPage("consent");
+              setConsentWarningPatient(p);
             }}
             onViewConsent={(inv) => { setViewingInvoice(inv); setPreviewTab("consent"); setPage("preview"); }}
             onDownloadConsent={(inv) => {
+              const prevPage = page;
               setViewingInvoice(inv);
               setPreviewTab("consent");
               setPage("preview");
@@ -7969,8 +8367,18 @@ export default function EphiaInvoice() {
                 const tpl = CONSENT_TEMPLATES.find(t => t.id === inv.consentData?.templateId);
                 const templateName = tpl ? tpl.title.replace("Aufklärungsbogen — ", "").replace(/\s+/g, "_") : "Aufklaerung";
                 const patName = [inv.patient?.vorname, inv.patient?.nachname].filter(Boolean).join("_") || "Patient";
-                await shareOrDownloadPDF("consent-form-pdf-target", `Aufklaerung_${templateName}_${patName}_${inv.invoiceMeta.datum}.pdf`);
-              }, 300);
+                const filename = `Aufklaerung_${templateName}_${patName}_${inv.invoiceMeta.datum}.pdf`;
+                const result = await generateMultiPagePDF("consent-form-pdf-target");
+                if (result) {
+                  const blob = result.pdf.output("blob");
+                  const file = new File([blob], filename, { type: "application/pdf" });
+                  const isMobile = window.innerWidth < 640;
+                  if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try { await navigator.share({ files: [file], title: filename }); } catch (e) { if (e.name !== "AbortError") result.pdf.save(filename); }
+                  } else { result.pdf.save(filename); }
+                }
+                setPage(prevPage);
+              }, 500);
             }}
             onPrint={(inv) => { setViewingInvoice(inv); setPreviewTab("rechnung"); setPage("preview"); setTimeout(() => printElement("invoice-preview", `Rechnung ${inv.invoiceMeta.nummer}`), 100); }}
             onPrintHV={handlePrintHV}
@@ -8111,6 +8519,34 @@ export default function EphiaInvoice() {
           const cd = viewingInvoice.consentData || {};
           const tpl = CONSENT_TEMPLATES.find(t => t.id === cd.templateId) || CONSENT_TEMPLATES[0];
           const viewPractice = viewingInvoice._practice || practice;
+          const needsDoctorSig = !cd.refused && cd._signatures?.patient && !cd._signatures?.doctor;
+          const isComplete = cd._signatures?.patient && cd._signatures?.doctor;
+          const handleConsentDoctorSign = () => {
+            setShowConsentDoctorSign(true);
+          };
+          const handleConsentDoctorSignComplete = async (doctorSigDataUrl) => {
+            setShowConsentDoctorSign(false);
+            if (!doctorSigDataUrl) return;
+            const merged = { ...(cd._signatures || {}), doctor: doctorSigDataUrl };
+            const updatedCd = { ...cd, _signatures: merged };
+            // Generate PDF hash now that both signatures are present
+            try {
+              const tempInv = { ...viewingInvoice, consentData: updatedCd };
+              setViewingInvoice(tempInv);
+              setInvoices(prev => prev.map(inv => inv.id === tempInv.id ? tempInv : inv));
+              await new Promise(r => setTimeout(r, 400));
+              const result = await generateMultiPagePDF("consent-form-pdf-target");
+              if (result) {
+                const pdfArrayBuffer = result.pdf.output("arraybuffer");
+                const hashBuffer = await crypto.subtle.digest("SHA-256", pdfArrayBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                updatedCd.pdfHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+              }
+            } catch (e) { console.error("PDF hash error:", e); }
+            await updateViewingInvoiceData({ consentData: updatedCd });
+            setSaveToast("Arzt Unterschrift gespeichert");
+            setTimeout(() => setSaveToast(""), 2500);
+          };
           return (
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4 mx-auto" style={{ maxWidth: "210mm" }}>
@@ -8118,15 +8554,38 @@ export default function EphiaInvoice() {
                 <h2 className="text-sm font-medium text-gray-700">Aufklärungsbogen</h2>
                 {cd.refused
                   ? <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-red-100 text-red-700 rounded">Abgelehnt</span>
-                  : <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Unterschrieben</span>
+                  : isComplete
+                  ? <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 rounded">Vollständig</span>
+                  : needsDoctorSig
+                  ? <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Arzt fehlt</span>
+                  : <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">Entwurf</span>
                 }
                 {cd.pdfHash && <span className="text-[10px] text-gray-400 font-mono">SHA-256: {cd.pdfHash.substring(0, 12)}…</span>}
               </div>
               <div className="flex gap-1.5">
+                <button className="p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition sm:hidden" title="Teilen" onClick={async () => {
+                  const patName = [viewingInvoice.patient?.vorname, viewingInvoice.patient?.nachname].filter(Boolean).join("_") || "Patient";
+                  const templateName = tpl.title.replace("Aufklärungsbogen — ", "").replace(/\s+/g, "_");
+                  const filename = `Aufklaerung_${templateName}_${patName}_${viewingInvoice.invoiceMeta.datum}.pdf`;
+                  try {
+                    const result = await generateMultiPagePDF("consent-form-pdf-target");
+                    if (result) {
+                      const blob = result.pdf.output("blob");
+                      const file = new File([blob], filename, { type: "application/pdf" });
+                      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({ files: [file], title: filename });
+                      } else { result.pdf.save(filename); }
+                    }
+                  } catch (e) { if (e.name !== "AbortError") console.error("Share failed:", e); }
+                }}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                </button>
                 <button className="p-2 rounded-lg border border-gray-200 text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={async () => {
                   const patName = [viewingInvoice.patient?.vorname, viewingInvoice.patient?.nachname].filter(Boolean).join("_") || "Patient";
                   const templateName = tpl.title.replace("Aufklärungsbogen — ", "").replace(/\s+/g, "_");
-                  await shareOrDownloadPDF("consent-form-pdf-target", `Aufklaerung_${templateName}_${patName}_${viewingInvoice.invoiceMeta.datum}.pdf`);
+                  const filename = `Aufklaerung_${templateName}_${patName}_${viewingInvoice.invoiceMeta.datum}.pdf`;
+                  const result = await generateMultiPagePDF("consent-form-pdf-target");
+                  if (result) { result.pdf.save(filename); }
                 }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                 </button>
@@ -8135,14 +8594,34 @@ export default function EphiaInvoice() {
                 </button>
               </div>
             </div>
-            {/* A4 Preview */}
-            <div className="mx-auto bg-white shadow-lg border border-gray-200 rounded overflow-hidden" style={{ maxWidth: "210mm" }}>
-              <ConsentFormPreview template={tpl} consentData={cd} patient={viewingInvoice.patient} practice={viewPractice} />
+            {/* A4 Preview: desktop shows full size, mobile uses scaled preview */}
+            <div className="hidden lg:block mx-auto space-y-4" style={{ maxWidth: "210mm" }}>
+              <ConsentFormPreview template={tpl} consentData={cd} patient={viewingInvoice.patient} practice={viewPractice} onDoctorSign={needsDoctorSig ? handleConsentDoctorSign : undefined} />
             </div>
+            <MobileScaledPreview className="lg:hidden" a4Width={794}>
+              <ConsentFormPreview template={tpl} consentData={cd} patient={viewingInvoice.patient} practice={viewPractice} onDoctorSign={needsDoctorSig ? handleConsentDoctorSign : undefined} />
+            </MobileScaledPreview>
             {/* Hidden render target for PDF */}
             <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
               <ConsentFormPreview template={tpl} consentData={cd} patient={viewingInvoice.patient} practice={viewPractice} />
             </div>
+            {/* Doctor signature modal for consent */}
+            {showConsentDoctorSign && (
+              <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && setShowConsentDoctorSign(false)}>
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-800">Unterschrift Ärzt:in</h3>
+                    <button className="p-1 text-gray-400 hover:text-gray-600" onClick={() => setShowConsentDoctorSign(false)}>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                  <SignaturePad key="consent-doctor-sig" label="Unterschrift Ärzt:in" onSave={handleConsentDoctorSignComplete} />
+                  <button className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600 transition py-1" onClick={() => setShowConsentDoctorSign(false)}>
+                    Abbrechen
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           );
         })()}
