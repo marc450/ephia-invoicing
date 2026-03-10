@@ -4924,7 +4924,7 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
 
 // ═══════════════════ Invoice List View ═══════════════════
 
-function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewTD, onDelete, onPrint, onPrintHV, onPrintTD, onDownload, onDownloadHV, onDownloadTD, onDownloadConsent, onBack, onUpdateInvoice, patients, onNewForPatient, onNewHVForPatient }) {
+function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewTD, onDelete, onPrint, onPrintHV, onPrintTD, onDownload, onDownloadHV, onDownloadTD, onDownloadConsent, onBack, onUpdateInvoice, patients, onNewForPatient, onNewHVForPatient, onNewConsentForPatient }) {
   const [tab, setTab] = React.useState("rechnungen");
   const [sortKey, setSortKey] = React.useState(null);
   const [sortDir, setSortDir] = React.useState("asc");
@@ -5068,7 +5068,7 @@ function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewT
           </button>
         </div>
         <div className="flex items-center gap-2">
-          {patients && patients.length > 0 && (tab === "rechnungen" || tab === "hv") && (
+          {patients && patients.length > 0 && (tab === "rechnungen" || tab === "hv" || tab === "consent") && (
             <div ref={newPickerRef} className="relative">
               <button
                 onClick={() => { setShowNewPicker(!showNewPicker); setNewPickerSearch(""); }}
@@ -5106,7 +5106,8 @@ function InvoiceListView({ invoices, kleinunternehmer, onView, onViewHV, onViewT
                             onMouseDown={(e) => {
                               e.preventDefault();
                               setShowNewPicker(false);
-                              if (tab === "hv") onNewHVForPatient(p);
+                              if (tab === "consent") onNewConsentForPatient(p);
+                              else if (tab === "hv") onNewHVForPatient(p);
                               else onNewForPatient(p);
                             }}
                           >
@@ -8115,6 +8116,11 @@ export default function EphiaInvoice() {
             patients={patients}
             onNewForPatient={handleNewForPatient}
             onNewHVForPatient={handleNewHVForPatient}
+            onNewConsentForPatient={(p) => {
+              const patientData = p.data || p._raw?.data || p;
+              const patientObj = { ...patientData, id: p.id, _raw: p._raw || p };
+              setConsentWarningPatient(patientObj);
+            }}
             onUpdateInvoice={async (updated) => {
               setInvoices(invoices.map(inv => inv.id === updated.id ? updated : inv));
               if (session && updated._supabaseId) {
