@@ -3898,22 +3898,17 @@ function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBa
                   <div className="grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto_1fr] gap-x-3 gap-y-1.5 text-xs">
                     <span className="text-gray-400">E-Mail</span>
                     <span>{email ? <a href={`mailto:${email}`} className="text-blue-500 hover:text-blue-700">{email}</a> : <span className="text-gray-400">—</span>}</span>
-                    <span className="text-gray-400">Telefon</span>
-                    <span className="text-gray-600">{rawData.phone ? (
-                      <>
-                        <a href={`tel:${rawData.phone.replace(/[^\d+]/g, "")}`} className="sm:hidden text-blue-500 hover:text-blue-700">{fmtPhone(rawData.phone)}</a>
-                        <span className="hidden sm:inline">{fmtPhone(rawData.phone)}</span>
-                      </>
-                    ) : <span className="text-gray-400">—</span>}</span>
-                    <span className="text-gray-400">Adresse</span>
-                    <span className="text-gray-600">{rawData.address1 ? `${rawData.address1}, ${rawData.address2 || ""}` : "—"}</span>
-                    <span className="text-gray-400">Land</span>
-                    <span className="text-gray-600">{rawData.country || "Deutschland"}</span>
-                    {rawData.geschlecht && <><span className="text-gray-400">Geschlecht</span><span className="text-gray-600">{rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "Männlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht}</span></>}
-                    {rawData.geburtsdatum && <><span className="text-gray-400">Geburtsdatum</span><span className="text-gray-600">{new Date(rawData.geburtsdatum).toLocaleDateString("de-DE")}</span></>}
-                    {!rawData.geburtsdatum && rawData.alter && <><span className="text-gray-400">Alter</span><span className="text-gray-600">{rawData.alter} Jahre</span></>}
-                    {rawData.groesse && <><span className="text-gray-400">Größe</span><span className="text-gray-600">{rawData.groesse} cm</span></>}
-                    {rawData.gewicht && <><span className="text-gray-400">Gewicht</span><span className="text-gray-600">{rawData.gewicht} kg</span></>}
+                    <span className="hidden sm:inline text-gray-400">Telefon</span>
+                    <span className="hidden sm:inline text-gray-600">{rawData.phone ? fmtPhone(rawData.phone) : "—"}</span>
+                    <span className="hidden sm:inline text-gray-400">Adresse</span>
+                    <span className="hidden sm:inline text-gray-600">{rawData.address1 ? `${rawData.address1}, ${rawData.address2 || ""}` : "—"}</span>
+                    <span className="hidden sm:inline text-gray-400">Land</span>
+                    <span className="hidden sm:inline text-gray-600">{rawData.country || "Deutschland"}</span>
+                    {rawData.geschlecht && <><span className="hidden sm:inline text-gray-400">Geschlecht</span><span className="hidden sm:inline text-gray-600">{rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "Männlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht}</span></>}
+                    {rawData.geburtsdatum && <><span className="hidden sm:inline text-gray-400">Geburtsdatum</span><span className="hidden sm:inline text-gray-600">{new Date(rawData.geburtsdatum).toLocaleDateString("de-DE")}</span></>}
+                    {!rawData.geburtsdatum && rawData.alter && <><span className="hidden sm:inline text-gray-400">Alter</span><span className="hidden sm:inline text-gray-600">{rawData.alter} Jahre</span></>}
+                    {rawData.groesse && <><span className="hidden sm:inline text-gray-400">Größe</span><span className="hidden sm:inline text-gray-600">{rawData.groesse} cm</span></>}
+                    {rawData.gewicht && <><span className="hidden sm:inline text-gray-400">Gewicht</span><span className="hidden sm:inline text-gray-600">{rawData.gewicht} kg</span></>}
                   </div>
                 </div>
               )}
