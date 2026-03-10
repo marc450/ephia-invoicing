@@ -8561,9 +8561,8 @@ export default function EphiaInvoice() {
                   ? <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Ärzt:in fehlt</span>
                   : <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">Entwurf</span>
                 }
-                {cd.pdfHash && <span className="text-[10px] text-gray-400 font-mono">SHA-256: {cd.pdfHash.substring(0, 12)}…</span>}
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 ml-auto">
                 <button className="p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition sm:hidden" title="Teilen" onClick={async () => {
                   const patName = [viewingInvoice.patient?.vorname, viewingInvoice.patient?.nachname].filter(Boolean).join("_") || "Patient";
                   const templateName = tpl.title.replace("Aufklärungsbogen — ", "").replace(/\s+/g, "_");
