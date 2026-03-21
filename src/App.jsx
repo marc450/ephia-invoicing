@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./lib/supabase/client";
@@ -60,7 +61,18 @@ export default function EphiaInvoice() {
   const [onboardingStep, setOnboardingStep] = useState(null); // null | "welcome" | "patient"
   const [showVerdienst, setShowVerdienst] = useState(false);
 
-  const [page, setPage] = useState("patients");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = location.pathname;
+
+  // Derive current section from pathname
+  const isPatientDetail = pathname.startsWith("/patients/") && pathname.split("/")[2] && pathname.split("/")[2] !== "neu";
+  const isCreatePage = pathname === "/erstellen";
+  const isListPage = pathname === "/rechnungen" || pathname === "/honorarvereinbarungen" || pathname === "/aufklaerung" || pathname === "/behandlungen";
+  const isPreviewPage = (pathname.startsWith("/rechnungen/") || pathname.startsWith("/honorarvereinbarungen/") || pathname.startsWith("/aufklaerung/") || pathname.startsWith("/behandlungen/")) && pathname.split("/")[2] && pathname.split("/")[2] !== "neu";
+  const isConsentPage = pathname === "/aufklaerung/neu";
+  const activeDocId = isPreviewPage ? pathname.split("/")[2] : null;
+  const activePatientId = isPatientDetail ? pathname.split("/")[2] : null;
 
   const [patient, setPatient] = useState({ vorname: "", nachname: "", email: "", phone: "", address1: "", address2: "", country: "Deutschland" });
   const [invoiceMeta, setInvoiceMeta] = useState({
@@ -144,17 +156,52 @@ export default function EphiaInvoice() {
   const [previewTab, setPreviewTab] = useState("rechnung"); // "rechnung" | "honorar"
   const [saveToast, setSaveToast] = useState("");  // empty = hidden, string = message
 
+  // ─── Sync selectedPatient from URL when navigating directly to /patients/:id ───
+  useEffect(() => {
+    if (activePatientId && patients.length > 0 && dataLoaded) {
+      const found = patients.find((p) => p.id === activePatientId);
+      if (found && (!selectedPatient || selectedPatient.id !== activePatientId)) {
+        setSelectedPatient(found);
+      }
+    }
+  }, [activePatientId, patients, dataLoaded]);
+
+  // ─── Sync viewingInvoice from URL when navigating directly to a document URL ───
+  useEffect(() => {
+    if (activeDocId && invoices.length > 0 && dataLoaded) {
+      const found = invoices.find((i) => i._supabaseId === activeDocId || String(i.id) === activeDocId);
+      if (found && (!viewingInvoice || viewingInvoice._supabaseId !== activeDocId)) {
+        setViewingInvoice(found);
+      }
+    }
+  }, [activeDocId, invoices, dataLoaded]);
+
+  // ─── Navigate to the right preview URL based on document type ───
+  const navigateToPreview = (inv) => {
+    setViewingInvoice(inv);
+    const docId = inv._supabaseId || String(inv.id);
+    if (inv._consentForm) {
+      navigate(`/aufklaerung/${docId}`);
+    } else if (inv._hvOnly) {
+      navigate(`/honorarvereinbarungen/${docId}`);
+    } else if (inv._treatmentDocOnly) {
+      navigate(`/behandlungen/${docId}`);
+    } else {
+      navigate(`/rechnungen/${docId}`);
+    }
+  };
+
   // ─── Force patients page when no patients exist ───
   useEffect(() => {
-    if (dataLoaded && patients.length === 0 && page !== "patients") {
-      setPage("patients");
+    if (dataLoaded && patients.length === 0 && pathname !== "/patients") {
+      navigate("/patients", { replace: true });
     }
-  }, [dataLoaded, patients.length, page]);
+  }, [dataLoaded, patients.length, pathname]);
 
   // ─── Scroll to top on page change ───
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [page]);
+  }, [pathname]);
 
   // ─── Check session on mount (restore MEK from sessionStorage) ───
   useEffect(() => {
@@ -972,10 +1019,9 @@ export default function EphiaInvoice() {
     const docType = hvOnlyMode ? "hv" : (hasHV ? "invoice_with_hv" : "invoice");
     trackEvent(amendingId ? "document_edited" : "document_created", { type: docType, has_treatment_doc: !!entry.treatmentDoc }, session?.access_token);
     setAmendingId(null);
-    setViewingInvoice(entry);
     setPreviewTab(hvOnlyMode ? "honorar" : "rechnung");
     setHvOnlyMode(false);
-    setPage("preview");
+    navigateToPreview(entry);
     window.scrollTo(0, 0);
     setSaveToast(hvOnlyMode ? "Honorarvereinbarung gespeichert" : (fromHvId ? "Rechnung gespeichert (HV verknüpft)" : (hasHV ? "Dokumente gespeichert" : "Dokument gespeichert")));
     setTimeout(() => setSaveToast(""), 3000);
@@ -1005,7 +1051,7 @@ export default function EphiaInvoice() {
     setIndicationType("aesthetic");
     setDiagnose("");
     setShowIndicationModal(true);
-    setPage("create");
+    navigate("/erstellen");
   };
 
   const handleNewHV = () => {
@@ -1023,7 +1069,7 @@ export default function EphiaInvoice() {
     setHvOnlyMode(true);
     setAmendingId(null);
     setCreateForPatient(null);
-    setPage("create");
+    navigate("/erstellen");
   };
 
   const handleNewHVForPatient = (patientObj) => {
@@ -1055,7 +1101,7 @@ export default function EphiaInvoice() {
     setHvBaseSachkosten(0);
     setCreateForPatient(patientObj);
     setCreateSource("list");
-    setPage("create");
+    navigate("/erstellen");
   };
 
   const handleNewForPatient = (patientObj) => {
@@ -1093,7 +1139,7 @@ export default function EphiaInvoice() {
     setIndicationType("aesthetic");
     setDiagnose("");
     setShowIndicationModal(true);
-    setPage("create");
+    navigate("/erstellen");
   };
 
   const handleAmend = (inv, fromTab) => {
@@ -1123,7 +1169,7 @@ export default function EphiaInvoice() {
     setHvBaseProductCost(null);
     setHvBaseSachkosten(0);
     setAmendingId(inv.id);
-    setPage("create");
+    navigate("/erstellen");
   };
 
   const handleDelete = (id) => setConfirmDeleteId(id);
@@ -1146,7 +1192,7 @@ export default function EphiaInvoice() {
     setInvoices(invoices.filter((inv) => inv.id !== confirmDeleteId));
     setConfirmDeleteId(null);
     if (viewingInvoice && viewingInvoice.id === confirmDeleteId) {
-      setPage("list");
+      navigate("/rechnungen");
       setViewingInvoice(null);
     }
   };
@@ -1224,13 +1270,12 @@ export default function EphiaInvoice() {
     setPatients(patients.filter((p) => p.id !== confirmDeletePatient.id));
     setConfirmDeletePatient(null);
     setSelectedPatient(null);
-    setPage("patients");
+    navigate("/patients");
   };
 
   const handleView = (inv) => {
-    setViewingInvoice(inv);
     setPreviewTab(inv._consentForm ? "consent" : "rechnung");
-    setPage("preview");
+    navigateToPreview(inv);
   };
 
   // ─── PDF download helper (html2canvas → jsPDF) ───
@@ -1253,9 +1298,8 @@ export default function EphiaInvoice() {
   };
 
   const handlePrintInvoice = (inv) => {
-    setViewingInvoice(inv);
     setPreviewTab("rechnung");
-    setPage("preview");
+    navigateToPreview(inv);
     setTimeout(() => printElement("invoice-preview", `Rechnung ${inv.invoiceMeta.nummer}`), 100);
   };
 
@@ -1386,9 +1430,8 @@ export default function EphiaInvoice() {
     } catch (e) { console.error("Error syncing consent demographics to patient:", e); }
 
     setInvoices(prev => [entry, ...prev]);
-    setViewingInvoice(entry);
     setPreviewTab("consent");
-    setPage("preview");
+    navigateToPreview(entry);
     setConsentPatient(null);
     setConsentTemplate(null);
     setSaveToast("Aufklärungsbogen gespeichert");
@@ -1502,15 +1545,13 @@ export default function EphiaInvoice() {
   };
 
   const handleViewHV = (inv) => {
-    setViewingInvoice(inv);
     setPreviewTab("honorar");
-    setPage("preview");
+    navigateToPreview(inv);
   };
 
   const handlePrintHV = (inv) => {
-    setViewingInvoice(inv);
     setPreviewTab("honorar");
-    setPage("preview");
+    navigateToPreview(inv);
     setTimeout(() => printElement("hv-preview", `Honorarvereinbarung ${inv.invoiceMeta.nummer}`), 100);
   };
 
@@ -1698,57 +1739,52 @@ export default function EphiaInvoice() {
   };
 
   const handleDownloadInvoice = (inv) => {
-    const prevPage = page;
     const prevViewing = viewingInvoice;
     setViewingInvoice(inv);
     setPreviewTab("rechnung");
-    setPage("preview");
+    navigate(`/rechnungen/${inv._supabaseId || String(inv.id)}`);
     setTimeout(async () => {
       await shareOrDownloadPDF("invoice-preview", `Rechnung_${inv.invoiceMeta.nummer}.pdf`);
-      setPage(prevPage);
+      navigate(-1);
       setViewingInvoice(prevViewing);
     }, 200);
   };
 
   const handleDownloadHV = (inv) => {
-    const prevPage = page;
     const prevViewing = viewingInvoice;
     setViewingInvoice(inv);
     setPreviewTab("honorar");
-    setPage("preview");
+    navigate(`/honorarvereinbarungen/${inv._supabaseId || String(inv.id)}`);
     setTimeout(async () => {
       await shareOrDownloadPDF("hv-preview", `Honorarvereinbarung_${inv.invoiceMeta.nummer}.pdf`);
-      setPage(prevPage);
+      navigate(-1);
       setViewingInvoice(prevViewing);
     }, 200);
   };
 
   const handleViewTD = (inv) => {
-    setViewingInvoice(inv);
     setPreviewTab("behandlung");
-    setPage("preview");
+    navigateToPreview(inv);
   };
 
   const handleDownloadTD = (inv) => {
-    const prevPage = page;
     const prevViewing = viewingInvoice;
     setViewingInvoice(inv);
     setPreviewTab("behandlung");
-    setPage("preview");
+    navigate(`/behandlungen/${inv._supabaseId || String(inv.id)}`);
     setTimeout(async () => {
       const td = inv.treatmentDoc || {};
       const dateStr = td.behandlungsDatum || inv.invoiceMeta.datum || new Date().toISOString().slice(0, 10);
       const patName = [(inv.patient || {}).vorname || "", (inv.patient || {}).nachname || ""].filter(Boolean).join("_") || "Patient";
       await shareOrDownloadPDF("invoice-treatment-doc-preview", `Behandlung_${patName}_${dateStr}.pdf`);
-      setPage(prevPage);
+      navigate(-1);
       setViewingInvoice(prevViewing);
     }, 200);
   };
 
   const handlePrintTD = (inv) => {
-    setViewingInvoice(inv);
     setPreviewTab("behandlung");
-    setPage("preview");
+    navigateToPreview(inv);
     const td = inv.treatmentDoc || {};
     const dateStr = td.behandlungsDatum || inv.invoiceMeta.datum || "";
     setTimeout(() => printElement("invoice-treatment-doc-preview", `Behandlungsdokumentation ${dateStr}`), 100);
@@ -1905,19 +1941,19 @@ export default function EphiaInvoice() {
     <div className="min-h-screen bg-gray-50" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif", overflowX: "clip" }}>
       <style>{`.hide-scrollbar::-webkit-scrollbar{display:none} .hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none} @keyframes plz-flash{0%{background-color:#d1fae5}100%{background-color:transparent}} .plz-autofilled{animation:plz-flash 1.2s ease-out}`}</style>
       {/* ─── Top bar ─── */}
-      {page !== "consent" && <div className="bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 sticky top-0 z-30">
+      {!isConsentPage && <div className="bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 sticky top-0 z-30">
         <div className="flex items-center justify-between">
-          <button onClick={() => setPage("patients")} className="hover:opacity-70 transition flex-shrink-0"><img src="/logo.svg" alt="EPHIA" style={{ height: "28px" }} className="sm:hidden" /><img src="/logo.svg" alt="EPHIA" style={{ height: "33px" }} className="hidden sm:block" /></button>
+          <button onClick={() => navigate("/patients")} className="hover:opacity-70 transition flex-shrink-0"><img src="/logo.svg" alt="EPHIA" style={{ height: "28px" }} className="sm:hidden" /><img src="/logo.svg" alt="EPHIA" style={{ height: "33px" }} className="hidden sm:block" /></button>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
             <button
-              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${page === "patients" || page === "patientDetail" ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-gray-200 hover:bg-gray-50"}`}
-              onClick={() => setPage("patients")}
+              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${pathname === "/patients" || pathname === "/" || isPatientDetail || isCreatePage ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-gray-200 hover:bg-gray-50"}`}
+              onClick={() => navigate("/patients")}
             >
               <span className="sm:hidden"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg></span><span className="hidden sm:inline">Patient:innen</span>
             </button>
             {patients.length > 0 && (<button
-              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${page === "list" ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-gray-200 hover:bg-gray-50"}`}
-              onClick={() => setPage("list")}
+              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${isListPage || isPreviewPage || isConsentPage ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-gray-200 hover:bg-gray-50"}`}
+              onClick={() => navigate("/rechnungen")}
             >
               <span className="sm:hidden"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></span><span className="hidden sm:inline">Dokumente</span>
             </button>)}
@@ -1984,7 +2020,7 @@ export default function EphiaInvoice() {
                 setConsentWarningPatient(null);
                 setConsentPatient(p);
                 setConsentTemplate(CONSENT_TEMPLATES[0]);
-                setPage("consent");
+                navigate("/aufklaerung/neu");
               }}>Verstanden, fortfahren</button>
             </div>
           </div>
@@ -2078,23 +2114,23 @@ export default function EphiaInvoice() {
         );
       })()}
 
-      {page === "agb" && <AGBPage onBack={() => setPage("patients")} />}
-      {page === "impressum" && <ImpressumPage onBack={() => setPage("patients")} />}
-      {page === "datenschutz" && <DatenschutzPage onBack={() => setPage("patients")} />}
+      {pathname === "/agb" && <AGBPage onBack={() => navigate("/patients")} />}
+      {pathname === "/impressum" && <ImpressumPage onBack={() => navigate("/patients")} />}
+      {pathname === "/datenschutz" && <DatenschutzPage onBack={() => navigate("/patients")} />}
 
-      {page === "consent" && consentTemplate && consentPatient && (
+      {isConsentPage && consentTemplate && consentPatient && (
         <ConsentFormView
           template={consentTemplate}
           patient={consentPatient}
           practice={practice}
           onComplete={handleConsentComplete}
-          onCancel={() => { setConsentPatient(null); setConsentTemplate(null); setPage("patientDetail"); }}
+          onCancel={() => { setConsentPatient(null); setConsentTemplate(null); navigate(`/patients/${consentPatient?.id || selectedPatient?.id}`); }}
         />
       )}
 
-      {page !== "agb" && page !== "impressum" && page !== "datenschutz" && page !== "consent" && <div className={`mx-auto px-3 sm:px-6 py-3 sm:py-5 ${page === "create" ? "max-w-7xl" : page === "list" || page === "patients" || page === "patientDetail" ? "max-w-6xl" : page === "preview" ? "max-w-5xl" : "max-w-3xl"}`}>
+      {pathname !== "/agb" && pathname !== "/impressum" && pathname !== "/datenschutz" && !isConsentPage && <div className={`mx-auto px-3 sm:px-6 py-3 sm:py-5 ${isCreatePage ? "max-w-7xl" : isListPage || pathname === "/patients" || pathname === "/" || isPatientDetail ? "max-w-6xl" : isPreviewPage ? "max-w-5xl" : "max-w-3xl"}`}>
         {/* ═══ CREATE PAGE ═══ */}
-        {page === "create" && (
+        {isCreatePage && (
           <>
           {/* ═══ Indication Type Modal ═══ */}
           {showIndicationModal && (
@@ -2135,7 +2171,7 @@ export default function EphiaInvoice() {
           {/* Left side: Form */}
           <div className="w-full lg:w-[400px] flex-shrink-0 bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
             {createForPatient && !amendingId && (
-              <button className="text-xs text-gray-400 hover:text-gray-600 mb-2" onClick={() => { setCreateForPatient(null); setPage(createSource === "list" ? "list" : "patientDetail"); }}>{createSource === "list" ? "← Zurück zu Dokumente" : `← Zurück zu ${patient.vorname} ${patient.nachname}`}</button>
+              <button className="text-xs text-gray-400 hover:text-gray-600 mb-2" onClick={() => { setCreateForPatient(null); navigate(createSource === "list" ? "/rechnungen" : `/patients/${createForPatient?.id}`); }}>{createSource === "list" ? "← Zurück zu Dokumente" : `← Zurück zu ${patient.vorname} ${patient.nachname}`}</button>
             )}
             <h2 className="text-base font-semibold text-gray-800 mb-1">
               {hvOnlyMode
@@ -2608,7 +2644,7 @@ export default function EphiaInvoice() {
                 </label>
               )}
               <div className="flex items-center justify-between">
-                <button className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50" onClick={() => { setAmendingId(null); setHvOnlyMode(false); setPage("list"); }}>
+                <button className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50" onClick={() => { setAmendingId(null); setHvOnlyMode(false); navigate("/rechnungen"); }}>
                   Abbrechen
                 </button>
                 <button
@@ -2660,7 +2696,7 @@ export default function EphiaInvoice() {
         )}
 
         {/* ═══ MOBILE PREVIEW FAB (create page only) ═══ */}
-        {page === "create" && (
+        {isCreatePage && (
           <button
             className="lg:hidden fixed bottom-6 right-5 z-40 bg-gray-800 text-white rounded-full shadow-lg flex items-center gap-1.5 pl-3 pr-3.5 py-2.5 text-xs font-medium hover:bg-gray-700 active:bg-gray-600 transition"
             onClick={() => setMobilePreviewOpen(true)}
@@ -2711,7 +2747,12 @@ export default function EphiaInvoice() {
         )}
 
         {/* ═══ LIST PAGE ═══ */}
-        {page === "list" && (
+        {isListPage && (() => {
+          const listInitialTab = pathname === "/honorarvereinbarungen" ? "hv"
+            : pathname === "/aufklaerung" ? "consent"
+            : pathname === "/behandlungen" ? "td"
+            : "rechnungen";
+          return (
           <InvoiceListView
             invoices={invoices}
             kleinunternehmer={practice.kleinunternehmer}
@@ -2728,7 +2769,7 @@ export default function EphiaInvoice() {
             onDownloadConsent={(inv) => {
               setViewingInvoice(inv);
               setPreviewTab("consent");
-              setPage("preview");
+              navigate(`/aufklaerung/${inv._supabaseId || String(inv.id)}`);
               setTimeout(async () => {
                 const tpl = CONSENT_TEMPLATES.find(t => t.id === inv.consentData?.templateId);
                 const templateName = tpl ? tpl.title.replace("Aufklärungsbogen — ", "").replace(/\s+/g, "_") : "Aufklaerung";
@@ -2743,11 +2784,11 @@ export default function EphiaInvoice() {
                     try { await navigator.share({ files: [file], title: filename }); } catch (e) { if (e.name !== "AbortError") result.pdf.save(filename); }
                   } else { result.pdf.save(filename); }
                 }
-                setPage("invoices");
+                navigate("/aufklaerung");
                 setViewingInvoice(null);
               }, 500);
             }}
-            onBack={() => setPage("patients")}
+            onBack={() => navigate("/patients")}
             patients={patients}
             onNewForPatient={handleNewForPatient}
             onNewHVForPatient={handleNewHVForPatient}
@@ -2764,11 +2805,17 @@ export default function EphiaInvoice() {
                 } catch (e) { console.error("Failed to persist status:", e); }
               }
             }}
+            initialTab={listInitialTab}
+            onTabChange={(tab) => {
+              const routes = { rechnungen: "/rechnungen", hv: "/honorarvereinbarungen", consent: "/aufklaerung", td: "/behandlungen" };
+              navigate(routes[tab] || "/rechnungen");
+            }}
           />
-        )}
+          );
+        })()}
 
         {/* ═══ ONBOARDING STEP 0: WELCOME ═══ */}
-        {onboardingStep === "welcome" && page === "patients" && dataLoaded && !showSettings && (
+        {onboardingStep === "welcome" && (pathname === "/patients" || pathname === "/") && dataLoaded && !showSettings && (
           <div className="max-w-lg mx-auto mt-12 sm:mt-20 px-4">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-6 py-8">
@@ -2803,7 +2850,7 @@ export default function EphiaInvoice() {
         )}
 
         {/* ═══ ONBOARDING STEP 2 + GENERAL EMPTY STATE ═══ */}
-        {page === "patients" && patients.length === 0 && dataLoaded && !showSettings && onboardingStep !== "welcome" && (
+        {(pathname === "/patients" || pathname === "/") && patients.length === 0 && dataLoaded && !showSettings && onboardingStep !== "welcome" && (
           <div className="max-w-lg mx-auto mt-12 sm:mt-20 px-4">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               {onboardingStep === "patient" ? (
@@ -2943,19 +2990,19 @@ export default function EphiaInvoice() {
         )}
 
         {/* ═══ PATIENTS PAGE ═══ */}
-        {page === "patients" && patients.length > 0 && !showAddPatient && (
+        {(pathname === "/patients" || pathname === "/") && patients.length > 0 && !showAddPatient && (
           <PatientListView
             patients={patients}
             invoices={invoices}
             kleinunternehmer={practice.kleinunternehmer}
-            onSelectPatient={(p) => { setSelectedPatient(p); setPage("patientDetail"); }}
+            onSelectPatient={(p) => { setSelectedPatient(p); navigate(`/patients/${p.id || p._raw?.id || p.data?.id}`); }}
             onDeletePatient={(p) => setConfirmDeletePatient(p)}
             onAddPatient={() => setShowAddPatient(true)}
-            onBack={() => setPage("patients")}
+            onBack={() => navigate("/patients")}
           />
         )}
 
-        {page === "patients" && patients.length > 0 && showAddPatient && (
+        {(pathname === "/patients" || pathname === "/") && patients.length > 0 && showAddPatient && (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100">
               <button className="text-xs text-gray-400 hover:text-gray-600 mb-2" onClick={() => { setShowAddPatient(false); setNewPatientData(EMPTY_PATIENT); }}>← Zurück zur Patient:innenliste</button>
@@ -3074,15 +3121,15 @@ export default function EphiaInvoice() {
         )}
 
         {/* ═══ PATIENT DETAIL PAGE ═══ */}
-        {page === "patientDetail" && selectedPatient && (
+        {isPatientDetail && selectedPatient && (
           <PatientDetailView
             patient={selectedPatient}
             invoices={invoices}
             kleinunternehmer={practice.kleinunternehmer}
             practice={practice}
-            onBack={() => setPage("patients")}
-            onView={(inv) => { setViewingInvoice(inv); setPreviewTab("rechnung"); setPage("preview"); }}
-            onViewHV={(inv) => { setViewingInvoice(inv); setPreviewTab("honorar"); setPage("preview"); }}
+            onBack={() => navigate("/patients")}
+            onView={(inv) => { setPreviewTab("rechnung"); navigateToPreview(inv); }}
+            onViewHV={(inv) => { setPreviewTab("honorar"); navigateToPreview(inv); }}
             onDownload={handleDownloadInvoice}
             onDownloadHV={handleDownloadHV}
             onCreateInvoice={(p) => handleNewForPatient(p)}
@@ -3090,12 +3137,12 @@ export default function EphiaInvoice() {
             onStartConsent={(p) => {
               setConsentWarningPatient(p);
             }}
-            onViewConsent={(inv) => { setViewingInvoice(inv); setPreviewTab("consent"); setPage("preview"); }}
+            onViewConsent={(inv) => { setPreviewTab("consent"); navigateToPreview(inv); }}
             onDownloadConsent={(inv) => {
-              const prevPage = page;
+              const prevPatientId = activePatientId;
               setViewingInvoice(inv);
               setPreviewTab("consent");
-              setPage("preview");
+              navigate(`/aufklaerung/${inv._supabaseId || String(inv.id)}`);
               setTimeout(async () => {
                 const tpl = CONSENT_TEMPLATES.find(t => t.id === inv.consentData?.templateId);
                 const templateName = tpl ? tpl.title.replace("Aufklärungsbogen — ", "").replace(/\s+/g, "_") : "Aufklaerung";
@@ -3110,10 +3157,10 @@ export default function EphiaInvoice() {
                     try { await navigator.share({ files: [file], title: filename }); } catch (e) { if (e.name !== "AbortError") result.pdf.save(filename); }
                   } else { result.pdf.save(filename); }
                 }
-                setPage(prevPage);
+                navigate(`/patients/${prevPatientId}`);
               }, 500);
             }}
-            onPrint={(inv) => { setViewingInvoice(inv); setPreviewTab("rechnung"); setPage("preview"); setTimeout(() => printElement("invoice-preview", `Rechnung ${inv.invoiceMeta.nummer}`), 100); }}
+            onPrint={(inv) => { setPreviewTab("rechnung"); navigateToPreview(inv); setTimeout(() => printElement("invoice-preview", `Rechnung ${inv.invoiceMeta.nummer}`), 100); }}
             onPrintHV={handlePrintHV}
             onDelete={(id) => setConfirmDeleteId(id)}
             onUpdateInvoice={async (updated, isNew) => {
@@ -3207,9 +3254,8 @@ export default function EphiaInvoice() {
                 setInvoices(prev => prev.map(inv => inv.id === treatment.id ? updatedTreatment : inv));
 
                 // Show the new invoice
-                setViewingInvoice(entry);
                 setPreviewTab("rechnung");
-                setPage("preview");
+                navigateToPreview(entry);
               } catch (err) {
                 console.error("Quick invoice error:", err);
                 alert("Fehler beim Erstellen der Rechnung: " + err.message);
@@ -3248,7 +3294,7 @@ export default function EphiaInvoice() {
         )}
 
         {/* ═══ CONSENT FORM PREVIEW ═══ */}
-        {page === "preview" && viewingInvoice && viewingInvoice._consentForm && (() => {
+        {isPreviewPage && viewingInvoice && viewingInvoice._consentForm && (() => {
           const cd = viewingInvoice.consentData || {};
           const tpl = CONSENT_TEMPLATES.find(t => t.id === cd.templateId) || CONSENT_TEMPLATES[0];
           const viewPractice = viewingInvoice._practice || practice;
@@ -3321,7 +3367,7 @@ export default function EphiaInvoice() {
                 }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                 </button>
-                <button className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50 transition" onClick={() => { setViewingInvoice(null); setPage("patientDetail"); }} title="Zurück">
+                <button className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50 transition" onClick={() => { setViewingInvoice(null); navigate(-1); }} title="Zurück">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
@@ -3359,7 +3405,7 @@ export default function EphiaInvoice() {
         })()}
 
         {/* ═══ PREVIEW PAGE ═══ */}
-        {page === "preview" && viewingInvoice && !viewingInvoice._consentForm && (() => {
+        {isPreviewPage && viewingInvoice && !viewingInvoice._consentForm && (() => {
           const isHvOnly = !!viewingInvoice._hvOnly;
           const isStandaloneTD = !!viewingInvoice._standalone;
           const linkedHV = viewingInvoice._fromHvId ? invoices.find((inv) => inv.id === viewingInvoice._fromHvId) : null;
@@ -3601,7 +3647,7 @@ export default function EphiaInvoice() {
         })()}
 
         <div className="mt-8 text-center text-xs text-gray-300">
-          EPHIA Rechnungs-Prototyp · Daten von Patient:innen werden gemäß DSGVO gespeichert · <button className="text-gray-400 hover:text-gray-500 underline" onClick={() => setPage("agb")}>AGB</button> · <button className="text-gray-400 hover:text-gray-500 underline" onClick={() => setPage("datenschutz")}>Datenschutz</button> · <button className="text-gray-400 hover:text-gray-500 underline" onClick={() => setPage("impressum")}>Impressum</button>
+          EPHIA Rechnungs-Prototyp · Daten von Patient:innen werden gemäß DSGVO gespeichert · <button className="text-gray-400 hover:text-gray-500 underline" onClick={() => navigate("/agb")}>AGB</button> · <button className="text-gray-400 hover:text-gray-500 underline" onClick={() => navigate("/datenschutz")}>Datenschutz</button> · <button className="text-gray-400 hover:text-gray-500 underline" onClick={() => navigate("/impressum")}>Impressum</button>
         </div>
       </div>}
     </div>
