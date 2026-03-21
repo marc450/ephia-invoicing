@@ -1,4 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
+import { fmtDate, fmt, parseDE, evalAmount, buildLineItems, calcWeightedForGesamt } from "../../utils/helpers";
+import { CONSENT_TEMPLATES } from "../consent/consentTemplates";
+import { spawnConfetti } from "../ui/ConfettiBurst";
 
 // ═══════════════════ Patient Detail View ═══════════════════
 
