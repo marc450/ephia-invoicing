@@ -165,38 +165,44 @@ export default function HonorarvereinbarungPreview({ practice, patient: rawPatie
       <div style={{ marginTop: "30px", marginBottom: "60px" }}>
         <span>Ort, Datum: {invoiceMeta.ort ? `${invoiceMeta.ort}, ${fmtDate(invoiceMeta.datum)}` : ""}</span>
       </div>
-      <div style={{ borderRadius: "8px", padding: "8px" }}>
-        <div style={{ display: "flex", justifyContent: "space-around" }}>
+      <div style={{ display: "flex", justifyContent: "space-around", marginTop: "30px" }}>
+        <div style={{ textAlign: "center", minWidth: "160px" }}>
+          {signatures?.patient && (
+            <img src={signatures.patient} alt="Patient:in" style={{ height: "55px", display: "block", margin: "0 auto 6px" }} />
+          )}
           <div
-            style={{ textAlign: "center", minWidth: "140px", ...(onDoctorSign && !signatures?.doctor ? { cursor: "pointer", borderRadius: "6px", padding: "8px", border: "2px dashed #93c5fd", background: "#eff6ff" } : {}) }}
-            onClick={onDoctorSign && !signatures?.doctor ? onDoctorSign : undefined}
-            title={onDoctorSign && !signatures?.doctor ? "Klicken zum Unterschreiben" : undefined}
+            style={{ textAlign: "center", minWidth: "160px", ...(onSignatureClick && !signatures?.patient ? { cursor: "pointer", borderRadius: "6px", padding: "8px", border: "2px dashed #93c5fd", background: "#eff6ff" } : {}) }}
+            onClick={onSignatureClick && !signatures?.patient ? onSignatureClick : undefined}
+            title={onSignatureClick && !signatures?.patient ? "Klicken zum Unterschreiben" : undefined}
           >
-            {signatures?.doctor ? (
-              <img src={signatures.doctor} alt="Unterschrift Ärzt:in" style={{ height: "60px", marginBottom: "4px", display: "block", margin: "0 auto 4px" }} />
-            ) : onDoctorSign ? (
-              <div style={{ height: "55px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "4px" }}>
+            {!signatures?.patient && onSignatureClick && (
+              <div style={{ height: "55px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "6px" }}>
                 <span style={{ fontSize: "10px", color: "#3b82f6" }}>Hier unterschreiben</span>
               </div>
-            ) : null}
-            <div style={{ borderTop: signatures?.doctor ? "1px solid #999" : "none", paddingTop: signatures?.doctor ? "4px" : (onDoctorSign ? "4px" : "40px"), minWidth: "140px" }}>
-              <span>Unterschrift Ärzt:in</span>
-            </div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            {signatures?.patient && (
-              <img src={signatures.patient} alt="Unterschrift Patient:in" style={{ height: "60px", marginBottom: "4px", display: "block", margin: "0 auto 4px" }} />
             )}
-            <div style={{ borderTop: signatures?.patient ? "1px solid #999" : "none", paddingTop: signatures?.patient ? "4px" : "40px", minWidth: "140px" }}>
-              <span>Unterschrift Patient:in</span>
+            <div style={{ borderTop: "1.5px solid #222", paddingTop: "6px", fontSize: "10px" }}>
+              <div style={{ fontWeight: "600" }}>{patient.vorname} {patient.nachname}</div>
+              <div style={{ fontSize: "9px", color: "#888" }}>Patient:in</div>
             </div>
           </div>
         </div>
-        {onSignatureClick && (
-          <div style={{ textAlign: "center", marginTop: "8px", fontSize: "11px", color: "#3b82f6", fontWeight: 500 }}>
-            ✍️ Tippen zum Unterschreiben
+        <div
+          style={{ textAlign: "center", minWidth: "160px", ...(onDoctorSign && !signatures?.doctor ? { cursor: "pointer", borderRadius: "6px", padding: "8px", border: "2px dashed #93c5fd", background: "#eff6ff" } : {}) }}
+          onClick={onDoctorSign && !signatures?.doctor ? onDoctorSign : undefined}
+          title={onDoctorSign && !signatures?.doctor ? "Klicken zum Unterschreiben" : undefined}
+        >
+          {signatures?.doctor ? (
+            <img src={signatures.doctor} alt="Ärzt:in" style={{ height: "55px", display: "block", margin: "0 auto 6px" }} />
+          ) : onDoctorSign ? (
+            <div style={{ height: "55px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "6px" }}>
+              <span style={{ fontSize: "10px", color: "#3b82f6" }}>Hier unterschreiben</span>
+            </div>
+          ) : null}
+          <div style={{ borderTop: "1.5px solid #222", paddingTop: "6px", fontSize: "10px" }}>
+            <div style={{ fontWeight: "600" }}>{practice.name || "Ärzt:in"}</div>
+            <div style={{ fontSize: "9px", color: "#888" }}>Ärzt:in</div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
