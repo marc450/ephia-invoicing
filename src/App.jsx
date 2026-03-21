@@ -185,7 +185,7 @@ export default function EphiaInvoice() {
       navigate(`/aufklaerung/${docId}`);
     } else if (inv._hvOnly) {
       navigate(`/honorarvereinbarungen/${docId}`);
-    } else if (inv._treatmentDocOnly) {
+    } else if (inv._treatmentDocOnly || inv._standalone) {
       navigate(`/behandlungen/${docId}`);
     } else {
       navigate(`/rechnungen/${docId}`);
@@ -3193,8 +3193,13 @@ export default function EphiaInvoice() {
                 setInvoices(invoices.map(inv => inv.id === updated.id ? updated : inv));
                 if (session && updated._supabaseId) {
                   try {
-                    await e2eeFetchModifySave(session.access_token, updated._supabaseId, { paymentStatus: updated.paymentStatus });
-                  } catch (e) { console.error("Failed to persist:", e); }
+                    let serverData = updated, serverIv = null, serverEncVer = null;
+                    if (currentMEK) {
+                      const enc = await encryptData(updated, currentMEK);
+                      serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
+                    }
+                    await supabaseUpdateInvoice(session.access_token, updated._supabaseId, serverData, serverIv, serverEncVer);
+                  } catch (e) { console.error("Failed to persist treatment update:", e); }
                 }
               }
             }}
