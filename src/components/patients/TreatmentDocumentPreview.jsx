@@ -1,5 +1,6 @@
 import React from "react";
-import { fmtDate, fmtPhone } from "../../utils/helpers";
+import { fmtDate, fmtPhone, evalAmount } from "../../utils/helpers";
+import { FACE_IMAGE_B64 } from "../../constants";
 
 // ═══════════════════ Treatment Document Preview (for PDF) ═══════════════════
 
