@@ -9,7 +9,7 @@ import TreatmentMap from "../treatment/TreatmentMap";
 import TreatmentDocPreview from "./TreatmentDocumentPreview";
 // ═══════════════════ Patient Detail View ═══════════════════
 
-export default function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBack, onView, onViewHV, onDownload, onDownloadHV, onPrint, onPrintHV, onDelete, onUpdateInvoice, onUpdatePatient, onCreateInvoice, onQuickInvoice, onNewHV, onStartConsent, onViewConsent, onDownloadConsent }) {
+export default function PatientDetailView({ patient, invoices, behandlungen = [], docsMigrated, kleinunternehmer, practice, onBack, onView, onViewHV, onDownload, onDownloadHV, onPrint, onPrintHV, onDelete, onUpdateInvoice, onUpdatePatient, onCreateInvoice, onQuickInvoice, onNewHV, onStartConsent, onViewConsent, onDownloadConsent, onCreateBehandlung, onUpdateBehandlung, onDeleteBehandlung, onLinkDocToBehandlung }) {
   const rawData = (patient._raw && typeof patient._raw.data === "object" && patient._raw.data) ? patient._raw.data : {};
   const email = (rawData.email || patient.email || "").toLowerCase();
   const [editingPatient, setEditingPatient] = React.useState(false);
@@ -35,7 +35,13 @@ export default function PatientDetailView({ patient, invoices, kleinunternehmer,
   const hvInvoices = matchingInvoices.filter((inv) => !inv._standalone && !inv._consentForm && (inv.hasHV != null ? inv.hasHV : (inv.lineItems || []).some((it) => it.steigerung != null && it.steigerung > 3.5)));
   const consentInvoices = matchingInvoices.filter((inv) => inv._consentForm);
 
-  const [tab, setTab] = React.useState("consent");
+  const [tab, setTab] = React.useState(docsMigrated ? "overview" : "consent");
+  const [newBehandlungOpen, setNewBehandlungOpen] = React.useState(false);
+  const [newBehDatum, setNewBehDatum] = React.useState(new Date().toISOString().slice(0, 10));
+  const [newBehPraeparat, setNewBehPraeparat] = React.useState("");
+  const [newBehEinheit, setNewBehEinheit] = React.useState("SE");
+  const [newBehNotes, setNewBehNotes] = React.useState("");
+  const [expandedBeh, setExpandedBeh] = React.useState(null); // expanded Behandlung ID
   const [newTreatmentMarkers, setNewTreatmentMarkers] = React.useState([]);
   const [newTreatmentInvoiceId, setNewTreatmentInvoiceId] = React.useState(null);
   const [newTreatmentEinheit, setNewTreatmentEinheit] = React.useState("SE");
@@ -254,7 +260,12 @@ export default function PatientDetailView({ patient, invoices, kleinunternehmer,
       <div className="relative border-b border-gray-100">
         <div className="py-2 flex items-center gap-0 overflow-x-auto hide-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
           <div className="flex-shrink-0 w-3 sm:w-5"></div>
-          <button className={tabBtnCls(tab === "consent") + " whitespace-nowrap flex-shrink-0"} onClick={() => setTab("consent")}>
+          {docsMigrated && (
+            <button className={tabBtnCls(tab === "overview") + " whitespace-nowrap flex-shrink-0"} onClick={() => setTab("overview")}>
+              Übersicht
+            </button>
+          )}
+          <button className={tabBtnCls(tab === "consent") + ` whitespace-nowrap flex-shrink-0${docsMigrated ? " ml-3 sm:ml-4" : ""}`} onClick={() => setTab("consent")}>
             <span className="sm:hidden">Aufkl. ({consentInvoices.length})</span><span className="hidden sm:inline">Aufklärungsbögen ({consentInvoices.length})</span>
           </button>
           <button className={tabBtnCls(tab === "hv") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("hv")}>
@@ -270,6 +281,179 @@ export default function PatientDetailView({ patient, invoices, kleinunternehmer,
         </div>
         <div className="absolute right-0 top-0 bottom-0 w-6 pointer-events-none sm:hidden" style={{ background: "linear-gradient(to right, transparent, white)" }}></div>
       </div>
+
+      {tab === "overview" && (() => {
+        const patientBeh = behandlungen.filter(b => b._patientId === patientDbId).sort((a, b) => (b.datum || b._createdAt || "").localeCompare(a.datum || a._createdAt || ""));
+        const standaloneDocs = matchingInvoices.filter(inv => !inv._behandlungId);
+        const getDocLabel = (inv) => {
+          if (inv._consentForm || inv._docType === "aufklaerung") return "Aufklärungsbogen";
+          if (inv._hvOnly || inv._docType === "hv") return "Honorarvereinbarung";
+          if ((inv._standalone || inv._treatmentDocOnly) || inv._docType === "behandlungsdoku") return "Behandlungsdoku";
+          return "Rechnung";
+        };
+        const getDocStatus = (inv) => {
+          if (inv._consentForm || inv._docType === "aufklaerung") {
+            const sigs = inv.consentData?._signatures;
+            if (inv.consentData?.refused) return { label: "Abgelehnt", color: "text-red-500" };
+            if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600" };
+            if (sigs?.patient) return { label: "Ärzt:in fehlt", color: "text-amber-500" };
+            return { label: "Entwurf", color: "text-gray-400" };
+          }
+          if (inv._hvOnly || inv._docType === "hv") {
+            const sigs = inv._signatures;
+            if (inv._signedHvUpload) return { label: "Hochgeladen", color: "text-green-600" };
+            if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600" };
+            if (sigs?.patient) return { label: "Ärzt:in fehlt", color: "text-amber-500" };
+            return { label: "—", color: "text-gray-400" };
+          }
+          if (inv.paymentStatus === "bezahlt") return { label: "Bezahlt", color: "text-green-600" };
+          return { label: "Ausstehend", color: "text-amber-500" };
+        };
+        const handleDocClick = (inv) => {
+          if (inv._consentForm || inv._docType === "aufklaerung") { onViewConsent && onViewConsent(inv); }
+          else if (inv._hvOnly || inv._docType === "hv") { onViewHV && onViewHV(inv); }
+          else if ((inv._standalone || inv._treatmentDocOnly) || inv._docType === "behandlungsdoku") {
+            setViewingTreatment(inv);
+            setTab("behandlung_detail");
+          }
+          else { onView && onView(inv); }
+        };
+        return (
+          <div className="px-3 sm:px-5 py-3">
+            {/* New Behandlung button */}
+            <div className="flex items-center gap-2 mb-4">
+              <button className="text-xs text-blue-500 hover:text-blue-700 font-medium transition" onClick={() => setNewBehandlungOpen(true)}>+ Neue Behandlung</button>
+            </div>
+
+            {/* New Behandlung form */}
+            {newBehandlungOpen && (
+              <div className="mb-4 p-3 border border-blue-100 rounded-lg bg-blue-50/50">
+                <div className="text-xs font-semibold text-gray-700 mb-2">Neue Behandlung</div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Datum</label>
+                    <input type="date" value={newBehDatum} onChange={e => setNewBehDatum(e.target.value)} className="w-full border rounded px-2 py-1 text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Einheit</label>
+                    <select value={newBehEinheit} onChange={e => setNewBehEinheit(e.target.value)} className="w-full border rounded px-2 py-1 text-xs">
+                      <option value="SE">SE</option>
+                      <option value="ml">ml</option>
+                      <option value="IE">IE</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Präparat</label>
+                  <PraeparatAutocomplete value={newBehPraeparat} onChange={setNewBehPraeparat} praeparate={practice.praeparate} className="w-full border rounded px-2 py-1 text-xs" />
+                </div>
+                <div className="mb-3">
+                  <label className="text-[10px] text-gray-500 block mb-0.5">Notizen (optional)</label>
+                  <input value={newBehNotes} onChange={e => setNewBehNotes(e.target.value)} className="w-full border rounded px-2 py-1 text-xs" placeholder="z.B. Stirn + Glabella" />
+                </div>
+                <div className="flex gap-2">
+                  <button className="px-3 py-1.5 text-xs rounded bg-gray-800 text-white hover:bg-gray-700 transition" onClick={async () => {
+                    if (!newBehDatum) return;
+                    try {
+                      await onCreateBehandlung(patientDbId, { datum: newBehDatum, praeparat: newBehPraeparat, einheit: newBehEinheit, notes: newBehNotes, status: "planned" });
+                      setNewBehandlungOpen(false);
+                      setNewBehDatum(new Date().toISOString().slice(0, 10));
+                      setNewBehPraeparat("");
+                      setNewBehEinheit("SE");
+                      setNewBehNotes("");
+                    } catch (e) { alert("Fehler: " + e.message); }
+                  }}>Erstellen</button>
+                  <button className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition" onClick={() => setNewBehandlungOpen(false)}>Abbrechen</button>
+                </div>
+              </div>
+            )}
+
+            {/* Behandlung cards */}
+            {patientBeh.length === 0 && standaloneDocs.length === 0 && !newBehandlungOpen && (
+              <div className="text-center py-10 text-gray-400 text-xs">Noch keine Behandlungen oder Dokumente vorhanden.</div>
+            )}
+
+            {patientBeh.map(beh => {
+              const behDocs = matchingInvoices.filter(inv => inv._behandlungId === beh._id);
+              const isExpanded = expandedBeh === beh._id;
+              return (
+                <div key={beh._id} className="mb-3 border border-gray-200 rounded-lg overflow-hidden bg-white">
+                  <button className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-gray-50 transition" onClick={() => setExpandedBeh(isExpanded ? null : beh._id)}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-semibold text-gray-800">{fmtDate(beh.datum)}</span>
+                      {beh.praeparat && <span className="text-xs text-gray-500">{beh.praeparat}</span>}
+                      {beh.einheit && <span className="text-[10px] text-gray-400">{beh.einheit}</span>}
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${beh.status === "completed" ? "bg-green-50 text-green-600" : "bg-blue-50 text-blue-600"}`}>
+                        {beh.status === "completed" ? "Abgeschlossen" : "Geplant"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] text-gray-400">{behDocs.length} Dok.</span>
+                      <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-gray-100">
+                      {behDocs.length === 0 && (
+                        <div className="px-3 py-4 text-center text-gray-400 text-xs">Noch keine Dokumente in dieser Behandlung.</div>
+                      )}
+                      {behDocs.map(doc => {
+                        const status = getDocStatus(doc);
+                        return (
+                          <button key={doc._supabaseId || doc.id} className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-gray-50 transition border-b border-gray-50 last:border-b-0" onClick={() => handleDocClick(doc)}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[10px] text-gray-400 w-3">📄</span>
+                              <span className="text-xs text-gray-700">{getDocLabel(doc)}</span>
+                              {doc.invoiceMeta?.nummer && doc.invoiceMeta.nummer !== "—" && <span className="text-[10px] text-gray-400">#{doc.invoiceMeta.nummer}</span>}
+                            </div>
+                            <span className={`text-[10px] ${status.color}`}>{status.label}</span>
+                          </button>
+                        );
+                      })}
+                      {/* Add document to Behandlung */}
+                      <div className="px-3 py-2 border-t border-gray-100 flex items-center gap-3">
+                        <button className="text-[10px] text-blue-500 hover:text-blue-700" onClick={() => { onStartConsent && onStartConsent(patient); }}>+ Aufklärung</button>
+                        <button className="text-[10px] text-blue-500 hover:text-blue-700" onClick={() => { onNewHV && onNewHV(); }}>+ HV</button>
+                        <button className="text-[10px] text-blue-500 hover:text-blue-700" onClick={() => { setTab("behandlungen_add"); }}>+ Behandlungsdoku</button>
+                        <button className="text-[10px] text-blue-500 hover:text-blue-700" onClick={() => { onCreateInvoice && onCreateInvoice(patient); }}>+ Rechnung</button>
+                      </div>
+                      {/* Delete Behandlung */}
+                      <div className="px-3 py-1.5 border-t border-gray-100 flex justify-end">
+                        <button className="text-[10px] text-red-400 hover:text-red-600" onClick={async () => {
+                          if (!confirm("Behandlung löschen? Die zugehörigen Dokumente bleiben erhalten.")) return;
+                          try { await onDeleteBehandlung(beh._id); } catch (e) { alert("Fehler: " + e.message); }
+                        }}>Behandlung löschen</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Standalone documents */}
+            {standaloneDocs.length > 0 && (
+              <div className="mt-4">
+                <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">Einzelne Dokumente</div>
+                {standaloneDocs.map(doc => {
+                  const status = getDocStatus(doc);
+                  return (
+                    <button key={doc._supabaseId || doc.id} className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-gray-50 transition border-b border-gray-50" onClick={() => handleDocClick(doc)}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[10px] text-gray-400">📄</span>
+                        <span className="text-xs text-gray-700">{getDocLabel(doc)}</span>
+                        {doc.invoiceMeta?.nummer && doc.invoiceMeta.nummer !== "—" && <span className="text-[10px] text-gray-400">#{doc.invoiceMeta.nummer}</span>}
+                        {doc.invoiceMeta?.datum && <span className="text-[10px] text-gray-400">{fmtDate(doc.invoiceMeta.datum)}</span>}
+                      </div>
+                      <span className={`text-[10px] ${status.color}`}>{status.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {tab === "rechnungen" && (
         <>

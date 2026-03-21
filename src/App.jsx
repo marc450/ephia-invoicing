@@ -6,6 +6,9 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./lib/supabase/client";
 import { supabaseSignIn, supabaseSignUp, supabaseSignOut, supabaseResetPassword, supabaseRefreshToken, supabaseGetUser } from "./lib/supabase/auth";
 import { supabaseFetchProfiles, supabaseUpdateProfile } from "./lib/supabase/profiles";
 import { supabaseFetchInvoices, supabaseCreateInvoice, supabaseUpdateInvoice, supabaseDeleteInvoice } from "./lib/supabase/invoices";
+import { supabaseFetchDocuments, supabaseCreateDocument, supabaseUpdateDocument, supabaseDeleteDocument, supabaseUpdateDocumentBehandlung } from "./lib/supabase/documents";
+import { supabaseFetchBehandlungen, supabaseCreateBehandlung, supabaseUpdateBehandlung, supabaseDeleteBehandlung } from "./lib/supabase/behandlungen";
+import { migrateInvoicesToDocuments } from "./lib/migration";
 import { supabaseFetchPatients, supabaseUpsertPatient, supabaseDeletePatient } from "./lib/supabase/patients";
 import { trackEvent } from "./lib/analytics";
 import {
@@ -148,6 +151,7 @@ export default function EphiaInvoice() {
   const [consentTemplate, setConsentTemplate] = useState(null); // active consent template
   const [consentWarningPatient, setConsentWarningPatient] = useState(null); // patient pending consent warning confirmation
   const [invoices, setInvoices] = useState([]);
+  const [behandlungen, setBehandlungen] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showAddPatient, setShowAddPatient] = useState(false);
@@ -160,6 +164,7 @@ export default function EphiaInvoice() {
   const [validationErrors, setValidationErrors] = useState({});
   const [previewTab, setPreviewTab] = useState("rechnung"); // "rechnung" | "honorar"
   const [saveToast, setSaveToast] = useState("");  // empty = hidden, string = message
+  const docsMigrated = useRef(false); // true after docs_migration_version >= 1
 
   // ─── Sync selectedPatient from URL when navigating directly to /patients/:id ───
   useEffect(() => {
@@ -192,11 +197,11 @@ export default function EphiaInvoice() {
   const navigateToPreview = (inv) => {
     setViewingInvoice(inv);
     const docId = inv._supabaseId || String(inv.id);
-    if (inv._consentForm) {
+    if (inv._consentForm || inv._docType === "aufklaerung") {
       navigate(`/aufklaerung/${docId}`);
-    } else if (inv._hvOnly) {
+    } else if (inv._hvOnly || inv._docType === "hv") {
       navigate(`/honorarvereinbarungen/${docId}`);
-    } else if (inv._treatmentDocOnly || inv._standalone) {
+    } else if (inv._treatmentDocOnly || inv._standalone || inv._docType === "behandlungsdoku") {
       navigate(`/behandlungen/${docId}`);
     } else {
       navigate(`/rechnungen/${docId}`);
@@ -385,32 +390,57 @@ export default function EphiaInvoice() {
         setOnboardingStep("welcome");
       }
 
-      // Load invoices (decrypt E2EE data)
-      const invoiceRecords = await supabaseFetchInvoices(accessToken, userId);
-      const loadedInvoices = [];
-      for (const rec of invoiceRecords) {
-        let invoiceData = rec.data;
-        // Handle fully-encrypted invoices (v1 old format, v2 full E2EE)
-        if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof invoiceData === "string") {
-          try {
-            invoiceData = await decryptData(invoiceData, rec.iv, currentMEK);
-          } catch (e) {
-            console.error("Failed to decrypt invoice:", rec.id, e);
-            continue;
+      // Check migration version to determine data source
+      const profile = profiles.length > 0 ? profiles[0] : null;
+      const migVersion = profile?.docs_migration_version || 0;
+      docsMigrated.current = migVersion >= 1;
+
+      let loadedInvoices = [];
+      if (docsMigrated.current) {
+        // NEW PATH: Load from documents + behandlungen tables
+        const docRecords = await supabaseFetchDocuments(accessToken, userId);
+        for (const rec of docRecords) {
+          let docData = rec.data;
+          if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof docData === "string") {
+            try { docData = await decryptData(docData, rec.iv, currentMEK); }
+            catch (e) { console.error("Failed to decrypt document:", rec.id, e); continue; }
           }
+          loadedInvoices.push({ ...docData, _supabaseId: rec.id, _docType: rec.doc_type, _behandlungId: rec.behandlung_id, _patientId: rec.patient_id, _createdAt: rec.created_at });
         }
-        // Handle patient-only encryption (encrypted_patient field inside data)
-        if (currentMEK && invoiceData.encrypted_patient && invoiceData.patient_iv) {
-          try {
-            invoiceData.patient = await decryptData(invoiceData.encrypted_patient, invoiceData.patient_iv, currentMEK);
-            delete invoiceData.encrypted_patient;
-            delete invoiceData.patient_iv;
-          } catch (e) {
-            console.error("Failed to decrypt patient in invoice:", rec.id, e);
-            invoiceData.patient = { vorname: "[verschlüsselt]", nachname: "", email: "", phone: "", address1: "", address2: "", country: "" };
+
+        // Load behandlungen
+        const behRecords = await supabaseFetchBehandlungen(accessToken, userId);
+        const loadedBeh = [];
+        for (const rec of behRecords) {
+          let behData = rec.data;
+          if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof behData === "string") {
+            try { behData = await decryptData(behData, rec.iv, currentMEK); }
+            catch (e) { console.error("Failed to decrypt behandlung:", rec.id, e); continue; }
           }
+          loadedBeh.push({ ...behData, _id: rec.id, _patientId: rec.patient_id, _createdAt: rec.created_at });
         }
-        loadedInvoices.push({ ...invoiceData, _supabaseId: rec.id, _createdAt: rec.created_at });
+        setBehandlungen(loadedBeh);
+      } else {
+        // LEGACY PATH: Load from invoices table
+        const invoiceRecords = await supabaseFetchInvoices(accessToken, userId);
+        for (const rec of invoiceRecords) {
+          let invoiceData = rec.data;
+          if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof invoiceData === "string") {
+            try { invoiceData = await decryptData(invoiceData, rec.iv, currentMEK); }
+            catch (e) { console.error("Failed to decrypt invoice:", rec.id, e); continue; }
+          }
+          if (currentMEK && invoiceData.encrypted_patient && invoiceData.patient_iv) {
+            try {
+              invoiceData.patient = await decryptData(invoiceData.encrypted_patient, invoiceData.patient_iv, currentMEK);
+              delete invoiceData.encrypted_patient;
+              delete invoiceData.patient_iv;
+            } catch (e) {
+              console.error("Failed to decrypt patient in invoice:", rec.id, e);
+              invoiceData.patient = { vorname: "[verschlüsselt]", nachname: "", email: "", phone: "", address1: "", address2: "", country: "" };
+            }
+          }
+          loadedInvoices.push({ ...invoiceData, _supabaseId: rec.id, _createdAt: rec.created_at });
+        }
       }
       setInvoices(loadedInvoices);
 
@@ -478,7 +508,8 @@ export default function EphiaInvoice() {
                     if (stored.encrypted_patient && stored.patient_iv) { stored.patient = await decryptData(stored.encrypted_patient, stored.patient_iv, currentMEK); delete stored.encrypted_patient; delete stored.patient_iv; }
                     stored.patient = inv.patient;
                     const enc = await encryptData(stored, currentMEK);
-                    await supabaseUpdateInvoice(accessToken, inv._supabaseId, enc.ciphertext, enc.iv, 2);
+                    const repairTable = docsMigrated.current ? "documents" : "invoices";
+                    await fetch(`${SUPABASE_URL}/rest/v1/${repairTable}?id=eq.${inv._supabaseId}`, { method: "PATCH", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" }, body: JSON.stringify({ data: enc.ciphertext, iv: enc.iv, encryption_version: 2 }) });
                   }
                 } catch (e) { console.error("Failed to repair invoice patient:", inv._supabaseId, e); }
               }
@@ -690,6 +721,9 @@ export default function EphiaInvoice() {
       // Always run migration to ensure all data is properly encrypted
       await migrateToEncrypted(data.access_token, data.user.id);
 
+      // Migrate invoices → documents table (idempotent, safe to re-run)
+      await migrateInvoicesToDocuments(data.access_token, data.user.id, currentMEK);
+
       await loadUserData(data.access_token, data.user.id, data.user.email);
     } catch (err) {
       setAuthError(err.message);
@@ -746,9 +780,11 @@ export default function EphiaInvoice() {
     setSession(null);
     setUser(null);
     setInvoices([]);
+    setBehandlungen([]);
     setPatients([]);
     setPractice(DEFAULT_PRACTICE);
     setDataLoaded(false);
+    docsMigrated.current = false;
     setAuthPage("login");
     setAuthError("");
   };
@@ -897,6 +933,34 @@ export default function EphiaInvoice() {
     }
   };
 
+  // ─── Document CRUD adapters (dual-path: invoices vs documents table) ───
+  const saveDocAdapter = async (entry, docType, patientId, behandlungId) => {
+    let serverData = entry, serverIv = null, serverEncVer = null;
+    if (currentMEK) {
+      const enc = await encryptData(entry, currentMEK);
+      serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
+    }
+    if (docsMigrated.current) {
+      return supabaseCreateDocument(session.access_token, user.id, patientId, behandlungId, docType, serverData, serverIv, serverEncVer);
+    }
+    return supabaseCreateInvoice(session.access_token, user.id, serverData, serverIv, serverEncVer);
+  };
+
+  const updateDocAdapter = async (docId, entry) => {
+    let serverData = entry, serverIv = null, serverEncVer = null;
+    if (currentMEK) {
+      const enc = await encryptData(entry, currentMEK);
+      serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
+    }
+    if (docsMigrated.current) return supabaseUpdateDocument(session.access_token, docId, serverData, serverIv, serverEncVer);
+    return supabaseUpdateInvoice(session.access_token, docId, serverData, serverIv, serverEncVer);
+  };
+
+  const deleteDocAdapter = async (docId) => {
+    if (docsMigrated.current) return supabaseDeleteDocument(session.access_token, docId);
+    return supabaseDeleteInvoice(session.access_token, docId);
+  };
+
   const handleGenerate = async () => {
     const items = buildLineItems(praeparat, ml, preisProMl, selectedZuschlaege, hvOnlyMode ? [] : sachkosten, computedS, einheit, useBeratungLang);
     const hasHV = hvOnlyMode ? true : (fromHvId ? false : items.some((it) => it.steigerung != null && it.steigerung > 3.5));
@@ -934,22 +998,21 @@ export default function EphiaInvoice() {
     // Persist to Supabase (E2EE: encrypt entire data object)
     if (session) {
       try {
-        let serverData = entry, serverIv = null, serverEncVer = null;
-        if (currentMEK) {
-          const enc = await encryptData(entry, currentMEK);
-          serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
-        }
+        const genDocType = hvOnlyMode ? "hv" : "rechnung";
+        const genPatientId = createForPatient?._raw?.id || createForPatient?.id || entry._patientDbId || null;
+        const genBehandlungId = entry._behandlungId || null;
 
         const amendingEntry = invoices.find((inv) => inv.id === amendingId);
         if (amendingEntry && amendingEntry._supabaseId) {
           // Update existing
-          await supabaseUpdateInvoice(session.access_token, amendingEntry._supabaseId, serverData, serverIv, serverEncVer);
-          setInvoices(invoices.map((inv) => (inv.id === amendingId ? { ...entry, _supabaseId: amendingEntry._supabaseId } : inv)));
+          await updateDocAdapter(amendingEntry._supabaseId, entry);
+          setInvoices(invoices.map((inv) => (inv.id === amendingId ? { ...entry, _supabaseId: amendingEntry._supabaseId, _docType: genDocType, _behandlungId: genBehandlungId } : inv)));
         } else {
           // Create new
-          const created = await supabaseCreateInvoice(session.access_token, user.id, serverData, serverIv, serverEncVer);
-          setInvoices([{ ...entry, _supabaseId: created.id, _createdAt: created.created_at || new Date().toISOString() }, ...invoices]);
-          setViewingInvoice({ ...entry, _supabaseId: created.id, _createdAt: created.created_at || new Date().toISOString() });
+          const created = await saveDocAdapter(entry, genDocType, genPatientId, genBehandlungId);
+          const newEntry = { ...entry, _supabaseId: created.id, _docType: genDocType, _behandlungId: genBehandlungId, _createdAt: created.created_at || new Date().toISOString() };
+          setInvoices([newEntry, ...invoices]);
+          setViewingInvoice(newEntry);
         }
 
         // Upsert patient (encrypted: manual find-then-insert/update)
@@ -1192,9 +1255,9 @@ export default function EphiaInvoice() {
     // Delete from Supabase
     if (session && toDelete && toDelete._supabaseId) {
       try {
-        await supabaseDeleteInvoice(session.access_token, toDelete._supabaseId);
+        await deleteDocAdapter(toDelete._supabaseId);
       } catch (err) {
-        console.error("Failed to delete invoice from Supabase:", err);
+        console.error("Failed to delete document:", err);
         alert("Fehler beim Löschen: " + err.message);
         return;
       }
@@ -1227,12 +1290,7 @@ export default function EphiaInvoice() {
     // Update in Supabase (E2EE: encrypt entire data object)
     if (session && converted._supabaseId) {
       try {
-        let serverData = converted, serverIv = null, serverEncVer = null;
-        if (currentMEK) {
-          const enc = await encryptData(converted, currentMEK);
-          serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
-        }
-        await supabaseUpdateInvoice(session.access_token, converted._supabaseId, serverData, serverIv, serverEncVer);
+        await updateDocAdapter(converted._supabaseId, converted);
       } catch (err) {
         console.error("Failed to convert invoice to standalone HV:", err);
         alert("Fehler: " + err.message);
@@ -1261,7 +1319,7 @@ export default function EphiaInvoice() {
       try {
         for (const inv of matchingInvoices) {
           if (inv._supabaseId) {
-            await supabaseDeleteInvoice(session.access_token, inv._supabaseId);
+            await deleteDocAdapter(inv._supabaseId);
           }
         }
         // Delete the patient record
@@ -1330,17 +1388,54 @@ export default function EphiaInvoice() {
     pdf.save(filename);
   };
 
-  // E2EE helper: fetch invoice from Supabase, decrypt, apply modifier, re-encrypt, save
+  // ─── Behandlung CRUD handlers ───
+  const handleCreateBehandlung = async (patientId, behData) => {
+    let serverData = behData, serverIv = null, serverEncVer = null;
+    if (currentMEK) {
+      const enc = await encryptData(behData, currentMEK);
+      serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
+    }
+    const created = await supabaseCreateBehandlung(session.access_token, user.id, patientId, serverData, serverIv, serverEncVer);
+    const newBeh = { ...behData, _id: created.id, _patientId: patientId, _createdAt: created.created_at };
+    setBehandlungen(prev => [newBeh, ...prev]);
+    return created.id;
+  };
+
+  const handleUpdateBehandlung = async (behId, behData) => {
+    let serverData = behData, serverIv = null, serverEncVer = null;
+    if (currentMEK) {
+      const enc = await encryptData(behData, currentMEK);
+      serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
+    }
+    await supabaseUpdateBehandlung(session.access_token, behId, serverData, serverIv, serverEncVer);
+    setBehandlungen(prev => prev.map(b => b._id === behId ? { ...behData, _id: behId, _patientId: b._patientId, _createdAt: b._createdAt } : b));
+  };
+
+  const handleDeleteBehandlung = async (behId) => {
+    await supabaseDeleteBehandlung(session.access_token, behId);
+    setBehandlungen(prev => prev.filter(b => b._id !== behId));
+    // Documents with ON DELETE SET NULL keep their data but lose the Behandlung link
+    setInvoices(prev => prev.map(inv => inv._behandlungId === behId ? { ...inv, _behandlungId: null } : inv));
+  };
+
+  const handleLinkDocToBehandlung = async (docId, behandlungId) => {
+    if (docsMigrated.current) {
+      await supabaseUpdateDocumentBehandlung(session.access_token, docId, behandlungId);
+    }
+    setInvoices(prev => prev.map(inv => inv._supabaseId === docId ? { ...inv, _behandlungId: behandlungId } : inv));
+  };
+
+  // E2EE helper: fetch document from Supabase, decrypt, apply modifier, re-encrypt, save
   const e2eeFetchModifySave = async (token, supabaseId, modifier) => {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/invoices?id=eq.${supabaseId}&select=data,iv,encryption_version`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    const table = docsMigrated.current ? "documents" : "invoices";
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${supabaseId}&select=data,iv,encryption_version`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
     const rows = await res.json();
     if (rows.length === 0) return;
     let stored = rows[0].data;
     if (currentMEK && rows[0].encryption_version >= 1 && rows[0].iv && typeof stored === "string") stored = await decryptData(stored, rows[0].iv, currentMEK);
     if (currentMEK && stored.encrypted_patient && stored.patient_iv) { stored.patient = await decryptData(stored.encrypted_patient, stored.patient_iv, currentMEK); delete stored.encrypted_patient; delete stored.patient_iv; }
     const modified = typeof modifier === "function" ? modifier(stored) : { ...stored, ...modifier };
-    if (currentMEK) { const enc = await encryptData(modified, currentMEK); await supabaseUpdateInvoice(token, supabaseId, enc.ciphertext, enc.iv, 2); }
-    else await supabaseUpdateInvoice(token, supabaseId, modified);
+    await updateDocAdapter(supabaseId, modified);
   };
 
   // Helper: update the currently viewing invoice (and any linked docs) and persist
@@ -1391,13 +1486,9 @@ export default function EphiaInvoice() {
     // Persist to Supabase with E2EE
     if (session) {
       try {
-        let serverData = entry, serverIv = null, serverEncVer = null;
-        if (currentMEK) {
-          const enc = await encryptData(entry, currentMEK);
-          serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
-        }
-        const created = await supabaseCreateInvoice(session.access_token, user.id, serverData, serverIv, serverEncVer);
+        const created = await saveDocAdapter(entry, "aufklaerung", patientDbId, entry._behandlungId || null);
         entry._supabaseId = created.id;
+        entry._docType = "aufklaerung";
         entry._createdAt = created.created_at || new Date().toISOString();
       } catch (e) { console.error("Failed to save consent form:", e); }
     }
@@ -3139,8 +3230,14 @@ export default function EphiaInvoice() {
           <PatientDetailView
             patient={selectedPatient}
             invoices={invoices}
+            behandlungen={behandlungen}
+            docsMigrated={docsMigrated.current}
             kleinunternehmer={practice.kleinunternehmer}
             practice={practice}
+            onCreateBehandlung={handleCreateBehandlung}
+            onUpdateBehandlung={handleUpdateBehandlung}
+            onDeleteBehandlung={handleDeleteBehandlung}
+            onLinkDocToBehandlung={handleLinkDocToBehandlung}
             onBack={() => navigate("/patients")}
             onView={(inv) => { setPreviewTab("rechnung"); navigateToPreview(inv); }}
             onViewHV={(inv) => { setPreviewTab("honorar"); navigateToPreview(inv); }}
@@ -3181,22 +3278,20 @@ export default function EphiaInvoice() {
               if (updated._deleted) {
                 // Delete from Supabase if persisted
                 if (session && updated._supabaseId) {
-                  try { await supabaseDeleteInvoice(session.access_token, updated._supabaseId); }
-                  catch (e) { console.error("Failed to delete treatment from Supabase:", e); }
+                  try { await deleteDocAdapter(updated._supabaseId); }
+                  catch (e) { console.error("Failed to delete treatment:", e); }
                 }
                 setInvoices(invoices.filter(inv => inv.id !== updated.id));
               }
               else if (isNew) {
-                // Persist new standalone treatment to Supabase (E2EE)
+                // Persist new standalone treatment
                 if (session) {
                   try {
-                    let serverData = updated, serverIv = null, serverEncVer = null;
-                    if (currentMEK) {
-                      const enc = await encryptData(updated, currentMEK);
-                      serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
-                    }
-                    const created = await supabaseCreateInvoice(session.access_token, user.id, serverData, serverIv, serverEncVer);
+                    const tdPatientId = updated._patientDbId || null;
+                    const tdBehandlungId = updated._behandlungId || null;
+                    const created = await saveDocAdapter(updated, "behandlungsdoku", tdPatientId, tdBehandlungId);
                     updated._supabaseId = created.id;
+                    updated._docType = "behandlungsdoku";
                     updated._createdAt = created.created_at || new Date().toISOString();
                   } catch (e) { console.error("Failed to persist standalone treatment:", e); }
                 }
@@ -3206,12 +3301,7 @@ export default function EphiaInvoice() {
                 setInvoices(invoices.map(inv => inv.id === updated.id ? updated : inv));
                 if (session && updated._supabaseId) {
                   try {
-                    let serverData = updated, serverIv = null, serverEncVer = null;
-                    if (currentMEK) {
-                      const enc = await encryptData(updated, currentMEK);
-                      serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
-                    }
-                    await supabaseUpdateInvoice(session.access_token, updated._supabaseId, serverData, serverIv, serverEncVer);
+                    await updateDocAdapter(updated._supabaseId, updated);
                   } catch (e) { console.error("Failed to persist treatment update:", e); }
                 }
               }
@@ -3251,13 +3341,12 @@ export default function EphiaInvoice() {
 
                 // Persist to Supabase (E2EE)
                 if (session) {
-                  let serverData = entry, serverIv = null, serverEncVer = null;
-                  if (currentMEK) {
-                    const enc = await encryptData(entry, currentMEK);
-                    serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
-                  }
-                  const created = await supabaseCreateInvoice(session.access_token, user.id, serverData, serverIv, serverEncVer);
+                  const qiPatientId = patientDbId;
+                  const qiBehandlungId = treatment._behandlungId || null;
+                  const created = await saveDocAdapter(entry, hasHV ? "rechnung" : "rechnung", qiPatientId, qiBehandlungId);
                   entry._supabaseId = created.id;
+                  entry._docType = "rechnung";
+                  entry._behandlungId = qiBehandlungId;
                   entry._createdAt = created.created_at || new Date().toISOString();
                 }
 
