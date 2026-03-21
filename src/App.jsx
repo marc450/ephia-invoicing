@@ -17,7 +17,7 @@ import {
   computePatientHash
 } from "./lib/crypto";
 import { DEFAULT_PRACTICE, AUTO_LOGOUT_MS, ZUSCHLAEGE, BOTOX_GOA_ITEMS, PUNKTWERT, SACHKOSTEN_INFO, ICD10_CODES } from "./constants";
-import { parseDE, evalAmount, fmt, fmtDate, buildLineItems, calcWeightedForGesamt } from "./utils/helpers";
+import { parseDE, evalAmount, fmt, fmtDate, buildLineItems, calcWeightedForGesamt, calcGoaBetrag, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, flashOrtField } from "./utils/helpers";
 import { LoginScreen, SignUpScreen, ResetPasswordScreen, SetNewPasswordScreen } from "./components/auth/AuthScreens";
 import Impressum from "./components/legal/Impressum";
 import Datenschutz from "./components/legal/Datenschutz";
@@ -27,6 +27,7 @@ import { spawnConfetti } from "./components/ui/ConfettiBurst";
 import PraeparatAutocomplete from "./components/ui/PraeparatAutocomplete";
 import InfoTooltip from "./components/ui/InfoTooltip";
 import ConsentFormPreview, { ConsentFormView } from "./components/consent/ConsentFormComponents";
+import { CONSENT_TEMPLATES } from "./components/consent/consentTemplates";
 import SignaturePad from "./components/consent/SignaturePad";
 import TreatmentMap from "./components/treatment/TreatmentMap";
 import MobileScaledPreview from "./components/treatment/MobileScaledPreview";

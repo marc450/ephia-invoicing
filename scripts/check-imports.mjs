@@ -41,7 +41,10 @@ function walk(dir) {
   return files;
 }
 
-const componentFiles = walk(join(ROOT, "components"));
+const componentFiles = [
+  ...walk(join(ROOT, "components")),
+  join(ROOT, "App.jsx"),
+];
 let errors = 0;
 
 for (const file of componentFiles) {
