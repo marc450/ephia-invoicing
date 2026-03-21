@@ -166,7 +166,14 @@ export default function EphiaInvoice() {
     if (activePatientId && patients.length > 0 && dataLoaded) {
       const found = patients.find((p) => p.id === activePatientId);
       if (found && (!selectedPatient || selectedPatient.id !== activePatientId)) {
-        setSelectedPatient(found);
+        const d = (typeof found.data === "object" && found.data) ? found.data : {};
+        setSelectedPatient({
+          vorname: d.vorname || "",
+          nachname: d.nachname || "",
+          email: d.email || "",
+          id: found.id,
+          _raw: found,
+        });
       }
     }
   }, [activePatientId, patients, dataLoaded]);
