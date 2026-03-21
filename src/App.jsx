@@ -3425,6 +3425,8 @@ export default function EphiaInvoice() {
           // Check for signed HV upload (on the HV itself, or on the linked HV)
           const hvSource = linkedHV || viewingInvoice;
           const signedHvUpload = hvSource._signedHvUpload || null;
+          const hvSigsOuter = hvSource?._signatures;
+          const hvIsFullySigned = !!(signedHvUpload || (hvSigsOuter?.patient && hvSigsOuter?.doctor));
           return (
           <div>
             {/* Toolbar - aligned with document */}
@@ -3473,17 +3475,26 @@ export default function EphiaInvoice() {
               })()}
               {/* Action buttons */}
               <div className="flex gap-1.5">
-                <button className="p-2 rounded-lg border border-gray-200 text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition" onClick={() => handleAmend(viewingInvoice, previewTab)} title="Ändern">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                </button>
-                {/* Sign button — shown on HV tab */}
-                {(previewTab === "honorar" || isHvOnly) && (
+                {/* Ändern — hidden when HV is fully signed (legally locked) */}
+                {!((previewTab === "honorar" || isHvOnly) && hvIsFullySigned) && (
+                  <button className="p-2 rounded-lg border border-gray-200 text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition" onClick={() => handleAmend(viewingInvoice, previewTab)} title="Ändern">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </button>
+                )}
+                {/* Lock icon — shown when HV is fully signed */}
+                {(previewTab === "honorar" || isHvOnly) && hvIsFullySigned && (
+                  <div className="p-2 rounded-lg border border-gray-200 text-gray-400 cursor-default" title="Dokument ist unterzeichnet und gesperrt">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                  </div>
+                )}
+                {/* Sign button — shown on HV tab only when not fully signed */}
+                {(previewTab === "honorar" || isHvOnly) && !hvIsFullySigned && (
                   <button className="p-2 rounded-lg border border-gray-200 text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" onClick={() => setShowSignatureModal(true)} title="Unterschreiben">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21h18" /></svg>
                   </button>
                 )}
-                {/* Upload signed HV — shown on HV tab */}
-                {(previewTab === "honorar" || isHvOnly) && (
+                {/* Upload signed HV — shown on HV tab only when not fully signed */}
+                {(previewTab === "honorar" || isHvOnly) && !hvIsFullySigned && (
                   <button className="p-2 rounded-lg border border-gray-200 text-green-600 hover:border-green-200 hover:bg-green-50 transition" onClick={() => hvUploadRef.current?.click()} title="Unterschriebene HV hochladen">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                   </button>

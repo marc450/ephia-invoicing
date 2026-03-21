@@ -532,7 +532,12 @@ export default function PatientDetailView({ patient, invoices, kleinunternehmer,
                             ))}
                           </div>
                         </td>
-                        <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-700">{datumStr}</span></td>
+                        <td className="px-3 py-3 align-middle">
+                          <span className="text-sm text-gray-700">{datumStr}</span>
+                          {inv.lastModifiedAt && inv.lastModifiedAt !== inv.savedAt && (
+                            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[9px] font-medium bg-amber-50 text-amber-600 border border-amber-200 rounded" title={`Geändert: ${new Date(inv.lastModifiedAt).toLocaleString("de-DE")}`}>geändert</span>
+                          )}
+                        </td>
                         <td className="px-3 py-3 align-middle"><span className="text-sm text-gray-500">{praep || "–"}</span></td>
                         <td className="hidden sm:table-cell px-3 py-3 align-middle"><span className="text-sm text-gray-500">{markerCount > 0 ? `${markerCount} (${totalUnitsStr} ${einh})` : td.amount ? `${td.amount} ${einh}` : "–"}</span></td>
                         <td className="px-3 py-3 align-middle">{hasInvoice ? <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{inv.invoiceMeta.nummer}</span> : <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Offen</span>}</td>
@@ -595,14 +600,22 @@ export default function PatientDetailView({ patient, invoices, kleinunternehmer,
           if (field === "praeparat") { updatedTd.praeparat = value.praep; updatedTd.einheit = value.einh; }
           if (field === "notes") updatedTd.notes = value;
           if (field === "markers") updatedTd.markers = value.map(m => ({ x: m.x, y: m.y, amount: m.amount }));
-          const updated = { ...inv, treatmentDoc: updatedTd };
+          const updated = { ...inv, treatmentDoc: updatedTd, lastModifiedAt: new Date().toISOString() };
           if (onUpdateInvoice) onUpdateInvoice(updated);
           setViewingTreatment(updated);
         };
 
         return (
           <div className="px-3 sm:px-5 py-4">
-            <button className="text-xs text-gray-400 hover:text-gray-600 mb-4" onClick={() => { setViewingTreatment(null); setTab("behandlungen"); }}>← Zurück zur Behandlungsübersicht</button>
+            <div className="flex items-center gap-3 mb-4">
+              <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => { setViewingTreatment(null); setTab("behandlungen"); }}>← Zurück zur Behandlungsübersicht</button>
+              {inv.lastModifiedAt && inv.lastModifiedAt !== inv.savedAt && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded" title={`Zuletzt geändert: ${new Date(inv.lastModifiedAt).toLocaleString("de-DE")}`}>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  Geändert {new Date(inv.lastModifiedAt).toLocaleDateString("de-DE")}
+                </span>
+              )}
+            </div>
             <div className="flex flex-col sm:flex-row gap-6">
               {/* Left: Face map large */}
               <div className="flex-shrink-0">
@@ -1142,7 +1155,7 @@ export default function PatientDetailView({ patient, invoices, kleinunternehmer,
         const saveFaceMarkers = () => {
           const inv = viewingTreatment;
           const updatedTd = { ...inv.treatmentDoc, markers: inlineTempMarkers.map(m => ({ x: m.x, y: m.y, amount: m.amount })) };
-          const updated = { ...inv, treatmentDoc: updatedTd };
+          const updated = { ...inv, treatmentDoc: updatedTd, lastModifiedAt: new Date().toISOString() };
           if (onUpdateInvoice) onUpdateInvoice(updated);
           setViewingTreatment(updated);
           setEditFace(false);
