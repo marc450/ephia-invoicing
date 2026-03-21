@@ -66,7 +66,28 @@ for (const file of componentFiles) {
   }
 }
 
-// Check 2: JSX component usage without import
+// Check 2: React hooks used without being imported
+const REACT_HOOKS = ["useState", "useEffect", "useRef", "useCallback", "useMemo", "useContext", "useReducer", "useLayoutEffect", "useId"];
+for (const file of componentFiles) {
+  const src = readFileSync(file, "utf8");
+  const rel = relative(ROOT + "/..", file);
+  const importLine = src.split("\n").filter(l => l.startsWith("import")).find(l => l.includes("react") || l.includes("React"));
+  const importedHooks = new Set();
+  if (importLine) {
+    const m = importLine.match(/\{([^}]+)\}/);
+    if (m) m[1].split(",").forEach(s => importedHooks.add(s.trim().split(/\s+as\s+/)[0].trim()));
+    // also covers `import React, { useState } from "react"` style
+  }
+  for (const hook of REACT_HOOKS) {
+    const usedBare = new RegExp(`(?<!React\\.)\\b${hook}\\(`).test(src);
+    if (usedBare && !importedHooks.has(hook)) {
+      console.error(`❌  ${rel}: uses '${hook}(...)' but doesn't import it from react`);
+      errors++;
+    }
+  }
+}
+
+// Check 3: JSX component usage without import
 for (const file of componentFiles) {
   const src = readFileSync(file, "utf8");
   const rel = relative(ROOT + "/..", file);
