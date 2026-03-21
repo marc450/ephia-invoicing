@@ -39,6 +39,7 @@ import ExpandableCard from "./components/patients/ExpandableCard";
 import TreatmentDocPreview from "./components/patients/TreatmentDocumentPreview";
 import PatientDetailView from "./components/patients/PatientDetailView";
 import InvoiceListView from "./components/invoices/InvoiceListView";
+import NotFoundPage from "./components/ui/NotFoundPage";
 
 let currentMEK = null;
 
@@ -72,6 +73,9 @@ export default function EphiaInvoice() {
   const isListPage = pathname === "/rechnungen" || pathname === "/honorarvereinbarungen" || pathname === "/aufklaerung" || pathname === "/behandlungen";
   const isPreviewPage = (pathname.startsWith("/rechnungen/") || pathname.startsWith("/honorarvereinbarungen/") || pathname.startsWith("/aufklaerung/") || pathname.startsWith("/behandlungen/")) && pathname.split("/")[2] && pathname.split("/")[2] !== "neu";
   const isConsentPage = pathname === "/aufklaerung/neu";
+  const isKnownRoute = pathname === "/" || pathname === "/patients" || pathname === "/erstellen"
+    || pathname === "/agb" || pathname === "/impressum" || pathname === "/datenschutz"
+    || isPatientDetail || isCreatePage || isListPage || isPreviewPage || isConsentPage;
   const activeDocId = isPreviewPage ? pathname.split("/")[2] : null;
   const activePatientId = isPatientDetail ? pathname.split("/")[2] : null;
 
@@ -2118,6 +2122,8 @@ export default function EphiaInvoice() {
       {pathname === "/agb" && <AGBPage onBack={() => navigate("/patients")} />}
       {pathname === "/impressum" && <ImpressumPage onBack={() => navigate("/patients")} />}
       {pathname === "/datenschutz" && <DatenschutzPage onBack={() => navigate("/patients")} />}
+
+      {!isKnownRoute && <NotFoundPage />}
 
       {isConsentPage && consentTemplate && consentPatient && (
         <ConsentFormView
