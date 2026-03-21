@@ -2,7 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import { fmtDate, fmt, fmtPhone, parseDE, evalAmount, buildLineItems, calcWeightedForGesamt, calcGesamt, calcGoaBetrag, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, fmtUnits } from "../../utils/helpers";
 import { CONSENT_TEMPLATES } from "../consent/consentTemplates";
 import { spawnConfetti } from "../ui/ConfettiBurst";
-
+import { FACE_IMAGE_B64, ZUSCHLAEGE } from "../../constants";
+import InfoTooltip from "../ui/InfoTooltip";
+import PraeparatAutocomplete from "../ui/PraeparatAutocomplete";
+import TreatmentMap from "../treatment/TreatmentMap";
+import TreatmentDocPreview from "./TreatmentDocumentPreview";
 // ═══════════════════ Patient Detail View ═══════════════════
 
 export default function PatientDetailView({ patient, invoices, kleinunternehmer, practice, onBack, onView, onViewHV, onDownload, onDownloadHV, onPrint, onPrintHV, onDelete, onUpdateInvoice, onUpdatePatient, onCreateInvoice, onQuickInvoice, onNewHV, onStartConsent, onViewConsent, onDownloadConsent }) {

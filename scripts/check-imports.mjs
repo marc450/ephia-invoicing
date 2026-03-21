@@ -1,7 +1,8 @@
 /**
  * check-imports.mjs
- * Scans all src/components files for usages of known globals (helpers, constants, etc.)
- * that must be explicitly imported. Reports any that are missing.
+ * Scans all src/components files + App.jsx for:
+ * 1. Usage of known globals (helpers, constants, etc.) without imports
+ * 2. JSX component usage (<ComponentName>) without a corresponding import
  *
  * Run: node scripts/check-imports.mjs
  */
@@ -62,6 +63,43 @@ for (const file of componentFiles) {
       console.error(`❌  ${rel}: uses '${name}' but doesn't import it (from src/${from})`);
       errors++;
     }
+  }
+}
+
+// Check 2: JSX component usage without import
+for (const file of componentFiles) {
+  const src = readFileSync(file, "utf8");
+  const rel = relative(ROOT + "/..", file);
+
+  // Collect all imported names from import lines
+  const importedNames = new Set(["React"]); // React is always available
+  for (const line of src.split("\n").filter(l => l.startsWith("import"))) {
+    const m = line.match(/import\s+(\w+)?\s*,?\s*(?:\{([^}]+)\})?/);
+    if (m && m[1]) importedNames.add(m[1]);
+    if (m && m[2]) m[2].split(",").forEach(s => importedNames.add(s.trim().split(/\s+as\s+/)[0].trim()));
+  }
+
+  // Find JSX component usages (uppercase tags)
+  const jsxUsages = [...src.matchAll(/<([A-Z][A-Za-z0-9.]*)/g)].map(m => m[1].split(".")[0]);
+  const unique = [...new Set(jsxUsages)];
+
+  // Collect locally-defined/declared uppercase names (components, params, vars)
+  const localDefs = new Set();
+  for (const m of src.matchAll(/(?:const|function|class)\s+([A-Z][A-Za-z0-9]+)/g)) {
+    localDefs.add(m[1]);
+  }
+  // Also collect function parameters that start with uppercase (used as JSX components)
+  for (const m of src.matchAll(/\(([^)]*)\)/g)) {
+    for (const param of m[1].split(",")) {
+      const p = param.trim().split(/[\s=]/)[0];
+      if (/^[A-Z]/.test(p)) localDefs.add(p);
+    }
+  }
+
+  for (const name of unique) {
+    if (importedNames.has(name) || localDefs.has(name)) continue;
+    console.error(`❌  ${rel}: uses <${name}> but doesn't import it`);
+    errors++;
   }
 }
 

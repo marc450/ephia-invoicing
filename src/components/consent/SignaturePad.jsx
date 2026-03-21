@@ -87,7 +87,7 @@ export default function SignaturePad({ onSave, label, width = 320, height = 160 
   );
 }
 
-function SignatureModal({ onComplete, onClose, existingSignatures }) {
+export function SignatureModal({ onComplete, onClose, existingSignatures }) {
   const handlePatientSave = (dataUrl) => {
     onComplete({ patient: dataUrl, doctor: existingSignatures?.doctor || null });
   };

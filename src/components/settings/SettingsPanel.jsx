@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-
+import InfoTooltip from "../ui/InfoTooltip";
 // ═══════════════════ Settings Panel ═══════════════════
 
 export default function SettingsPanel({ practice, setPractice, show, setShow, onSave, isFirstTime, session, currentMEK, userId, patients, invoices, setPatients, setInvoices }) {

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { evalAmount } from "../../utils/helpers";
+import { FACE_IMAGE_B64 } from "../../constants";
 
 // ═══════════════════ Treatment Map ═══════════════════
 
