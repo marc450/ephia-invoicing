@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { CONSENT_TEMPLATES } from "./consentTemplates";
-import { fmtDate } from "../../utils/helpers";
+import { fmtDate, fmtPhone } from "../../utils/helpers";
 
 // ═══════════════════ Consent Form Components ═══════════════════
 

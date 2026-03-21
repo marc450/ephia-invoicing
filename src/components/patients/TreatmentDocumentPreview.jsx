@@ -1,5 +1,5 @@
 import React from "react";
-import { fmtDate } from "../../utils/helpers";
+import { fmtDate, fmtPhone } from "../../utils/helpers";
 
 // ═══════════════════ Treatment Document Preview (for PDF) ═══════════════════
 
