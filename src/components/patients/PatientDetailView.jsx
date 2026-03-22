@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { fmtDate, fmt, fmtPhone, parseDE, evalAmount, buildLineItems, calcWeightedForGesamt, calcGesamt, calcGoaBetrag, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, fmtUnits } from "../../utils/helpers";
 import { CONSENT_TEMPLATES } from "../consent/consentTemplates";
 import { spawnConfetti } from "../ui/ConfettiBurst";
-import { FACE_IMAGE_B64, ZUSCHLAEGE } from "../../constants";
+import { FACE_IMAGE_B64, ZUSCHLAEGE, PRIORITY_COUNTRIES, OTHER_COUNTRIES } from "../../constants";
 import InfoTooltip from "../ui/InfoTooltip";
 import PraeparatAutocomplete from "../ui/PraeparatAutocomplete";
 import TreatmentMap from "../treatment/TreatmentMap";
