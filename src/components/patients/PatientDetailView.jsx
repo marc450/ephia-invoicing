@@ -51,9 +51,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
   const [tab, setTab] = React.useState(docsMigrated ? "overview" : "consent");
   const [newBehandlungOpen, setNewBehandlungOpen] = React.useState(false);
   const [newBehDatum, setNewBehDatum] = React.useState(new Date().toISOString().slice(0, 10));
-  const [newBehPraeparat, setNewBehPraeparat] = React.useState("");
-  const [newBehEinheit, setNewBehEinheit] = React.useState("SE");
-  const [newBehNotes, setNewBehNotes] = React.useState("");
+  const [newBehZeit, setNewBehZeit] = React.useState("");
   const [expandedBeh, setExpandedBeh] = React.useState(null); // expanded Behandlung ID
   const [newTreatmentMarkers, setNewTreatmentMarkers] = React.useState([]);
   const [newTreatmentInvoiceId, setNewTreatmentInvoiceId] = React.useState(null);
@@ -418,38 +416,24 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
             {newBehandlungOpen && (
               <div className="mb-4 p-3 border border-blue-100 rounded-lg bg-blue-50/50">
                 <div className="text-xs font-semibold text-gray-700 mb-2">Neue Behandlung</div>
-                <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="grid grid-cols-2 gap-2 mb-3">
                   <div>
                     <label className="text-[10px] text-gray-500 block mb-0.5">Datum</label>
                     <input type="date" value={newBehDatum} onChange={e => setNewBehDatum(e.target.value)} className="w-full border rounded px-2 py-1 text-xs" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-gray-500 block mb-0.5">Einheit</label>
-                    <select value={newBehEinheit} onChange={e => setNewBehEinheit(e.target.value)} className="w-full border rounded px-2 py-1 text-xs">
-                      <option value="SE">SE</option>
-                      <option value="ml">ml</option>
-                      <option value="IE">IE</option>
-                    </select>
+                    <label className="text-[10px] text-gray-500 block mb-0.5">Uhrzeit (optional)</label>
+                    <input type="time" value={newBehZeit} onChange={e => setNewBehZeit(e.target.value)} className="w-full border rounded px-2 py-1 text-xs" />
                   </div>
-                </div>
-                <div className="mb-2">
-                  <label className="text-[10px] text-gray-500 block mb-0.5">Präparat</label>
-                  <PraeparatAutocomplete value={newBehPraeparat} onChange={setNewBehPraeparat} praeparate={practice.praeparate} className="w-full border rounded px-2 py-1 text-xs" />
-                </div>
-                <div className="mb-3">
-                  <label className="text-[10px] text-gray-500 block mb-0.5">Notizen (optional)</label>
-                  <input value={newBehNotes} onChange={e => setNewBehNotes(e.target.value)} className="w-full border rounded px-2 py-1 text-xs" placeholder="z.B. Stirn + Glabella" />
                 </div>
                 <div className="flex gap-2">
                   <button className="px-3 py-1.5 text-xs rounded bg-gray-800 text-white hover:bg-gray-700 transition" onClick={async () => {
                     if (!newBehDatum) return;
                     try {
-                      await onCreateBehandlung(patientDbId, { datum: newBehDatum, praeparat: newBehPraeparat, einheit: newBehEinheit, notes: newBehNotes, status: "planned" });
+                      await onCreateBehandlung(patientDbId, { datum: newBehDatum, zeit: newBehZeit || "", status: "planned" });
                       setNewBehandlungOpen(false);
                       setNewBehDatum(new Date().toISOString().slice(0, 10));
-                      setNewBehPraeparat("");
-                      setNewBehEinheit("SE");
-                      setNewBehNotes("");
+                      setNewBehZeit("");
                     } catch (e) { alert("Fehler: " + e.message); }
                   }}>Erstellen</button>
                   <button className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition" onClick={() => setNewBehandlungOpen(false)}>Abbrechen</button>
@@ -470,8 +454,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
                   <button className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-gray-50 transition" onClick={() => setExpandedBeh(isExpanded ? null : beh._id)}>
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-xs font-semibold text-gray-800">{fmtDate(beh.datum)}</span>
-                      {beh.praeparat && <span className="text-xs text-gray-500">{beh.praeparat}</span>}
-                      {beh.einheit && <span className="text-[10px] text-gray-400">{beh.einheit}</span>}
+                      {beh.zeit && <span className="text-xs text-gray-500">{beh.zeit} Uhr</span>}
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${beh.status === "completed" ? "bg-green-50 text-green-600" : "bg-blue-50 text-blue-600"}`}>
                         {beh.status === "completed" ? "Abgeschlossen" : "Geplant"}
                       </span>
