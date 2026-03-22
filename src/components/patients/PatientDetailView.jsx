@@ -14,6 +14,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
   const email = (rawData.email || patient.email || "").toLowerCase();
   const [editingPatient, setEditingPatient] = React.useState(false);
   const [confirmDeleteTreatment, setConfirmDeleteTreatment] = React.useState(null);
+  const [confirmDeleteBeh, setConfirmDeleteBeh] = React.useState(null);
   const [editingTreatmentInv, setEditingTreatmentInv] = React.useState(null);
   const [viewingTreatment, setViewingTreatment] = React.useState(null);
   const [editData, setEditData] = React.useState({
@@ -509,10 +510,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
                       </div>
                       {/* Delete Behandlung */}
                       <div className="px-3 py-1.5 border-t border-gray-100 flex justify-end">
-                        <button className="text-[10px] text-red-400 hover:text-red-600" onClick={async () => {
-                          if (!confirm("Behandlung löschen? Die zugehörigen Dokumente bleiben erhalten.")) return;
-                          try { await onDeleteBehandlung(beh._id); } catch (e) { alert("Fehler: " + e.message); }
-                        }}>Behandlung löschen</button>
+                        <button className="text-[10px] text-red-400 hover:text-red-600" onClick={() => setConfirmDeleteBeh(beh)}>Behandlung löschen</button>
                       </div>
                     </div>
                   )}
@@ -1406,6 +1404,22 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
                 setConfirmDeleteTreatment(null);
                 setTab("rechnungen");
                 setTimeout(() => setTab("behandlungen"), 0);
+              }}>Löschen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteBeh && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Behandlung löschen?</h3>
+            <p className="text-xs text-gray-500 mb-4">Die zugehörigen Dokumente bleiben erhalten.</p>
+            <div className="flex gap-2 justify-end">
+              <button className="px-3 py-1.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeleteBeh(null)}>Abbrechen</button>
+              <button className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700" onClick={async () => {
+                try { await onDeleteBehandlung(confirmDeleteBeh._id); } catch (e) { console.error("Delete Behandlung error:", e); }
+                setConfirmDeleteBeh(null);
               }}>Löschen</button>
             </div>
           </div>
