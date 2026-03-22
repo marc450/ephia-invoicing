@@ -32,11 +32,11 @@ export default function BehandlungDetailPanel({
   const [quickInvoiceSaving, setQuickInvoiceSaving] = useState(false);
 
   const inv = viewingTreatment;
-  const td = inv.treatmentDoc;
+  const td = inv.treatmentDoc || {};
   const einh = td.einheit || inv.einheit || "SE";
   const praep = td.praeparat || inv.praeparat || "";
   const datumStr = td.behandlungsDatum ? fmtDate(td.behandlungsDatum) : "\u2013";
-  const hasInvoice = inv.invoiceMeta.nummer && inv.invoiceMeta.nummer !== "\u2014";
+  const hasInvoice = inv.invoiceMeta?.nummer && inv.invoiceMeta.nummer !== "\u2014";
   const markerCount = (td.markers || []).length;
   const totalUnits = Math.round((td.markers || []).reduce((s, m) => s + evalAmount(m.amount), 0) * 100) / 100;
   const totalUnitsStr = fmtUnits(td.markers || []);
