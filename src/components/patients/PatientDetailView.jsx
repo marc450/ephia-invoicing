@@ -1323,6 +1323,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
 
       {/* ── Face Edit Modal (rendered at component root, outside all IIFEs) ── */}
       {editFace && viewingTreatment && (() => {
+        const td = viewingTreatment.treatmentDoc || {};
         const isMobileFE = typeof window !== "undefined" && window.innerWidth < 640;
         const faceSzFE = isMobileFE ? "min(85vw, 340px)" : "min(85vh - 100px, 700px)";
         const handleFaceClickFE = (e) => {
