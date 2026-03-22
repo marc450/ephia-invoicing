@@ -272,12 +272,15 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
       <div className="relative border-b border-gray-100">
         <div className="py-2 flex items-center gap-0 overflow-x-auto hide-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
           <div className="flex-shrink-0 w-3 sm:w-5"></div>
+          <button className={tabBtnCls(tab === "patient") + " whitespace-nowrap flex-shrink-0"} onClick={() => setTab("patient")}>
+            Patient:in
+          </button>
           {docsMigrated && (
-            <button className={tabBtnCls(tab === "overview") + " whitespace-nowrap flex-shrink-0"} onClick={() => setTab("overview")}>
+            <button className={tabBtnCls(tab === "overview") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("overview")}>
               Übersicht
             </button>
           )}
-          <button className={tabBtnCls(tab === "consent") + ` whitespace-nowrap flex-shrink-0${docsMigrated ? " ml-3 sm:ml-4" : ""}`} onClick={() => setTab("consent")}>
+          <button className={tabBtnCls(tab === "consent") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("consent")}>
             <span className="sm:hidden">Aufkl. ({consentInvoices.length})</span><span className="hidden sm:inline">Aufklärungsbögen ({consentInvoices.length})</span>
           </button>
           <button className={tabBtnCls(tab === "hv") + " whitespace-nowrap flex-shrink-0 ml-3 sm:ml-4"} onClick={() => setTab("hv")}>
@@ -293,6 +296,78 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
         </div>
         <div className="absolute right-0 top-0 bottom-0 w-6 pointer-events-none sm:hidden" style={{ background: "linear-gradient(to right, transparent, white)" }}></div>
       </div>
+
+      {tab === "patient" && (() => {
+        const anamnese = (rawData.anamnese || []).slice().sort((a, b) => (a.addedAt || "").localeCompare(b.addedAt || ""));
+        const geschlechtLabel = rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "Männlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht || "—";
+        return (
+          <div className="px-3 sm:px-5 py-4 space-y-6">
+            {/* Contact details */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Kontaktdaten</h3>
+                <button
+                  className="text-xs text-blue-500 hover:text-blue-700 transition"
+                  onClick={() => { setPatientEditField("all"); setEditData({ vorname: patient.vorname || rawData.vorname || "", nachname: patient.nachname || rawData.nachname || "", email: rawData.email || patient.email || "", phone: rawData.phone || "", address1: rawData.address1 || "", address2: rawData.address2 || "", country: rawData.country || "Deutschland" }); }}
+                >
+                  Bearbeiten
+                </button>
+              </div>
+              <div className="grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto_1fr] gap-x-4 gap-y-2 text-xs">
+                <span className="text-gray-400">Vorname</span><span className="text-gray-700">{rawData.vorname || patient.vorname || "—"}</span>
+                <span className="text-gray-400">Nachname</span><span className="text-gray-700">{rawData.nachname || patient.nachname || "—"}</span>
+                <span className="text-gray-400">E-Mail</span>
+                <span>{email ? <a href={`mailto:${email}`} className="text-blue-500 hover:text-blue-700">{email}</a> : <span className="text-gray-400">—</span>}</span>
+                <span className="text-gray-400">Telefon</span>
+                <span className="text-gray-600">{rawData.phone ? (
+                  <>
+                    <a href={`tel:${rawData.phone.replace(/[^\d+]/g, "")}`} className="sm:hidden text-blue-500 hover:text-blue-700">{fmtPhone(rawData.phone)}</a>
+                    <span className="hidden sm:inline">{fmtPhone(rawData.phone)}</span>
+                  </>
+                ) : <span className="text-gray-400">—</span>}</span>
+                <span className="text-gray-400">Adresse</span>
+                <span className="text-gray-600">{rawData.address1 ? `${rawData.address1}, ${rawData.address2 || ""}` : <span className="text-gray-400">—</span>}</span>
+                <span className="text-gray-400">Land</span>
+                <span className="text-gray-600">{rawData.country || "Deutschland"}</span>
+                <span className="text-gray-400">Geschlecht</span><span className="text-gray-600">{geschlechtLabel}</span>
+                <span className="text-gray-400">Geburtsdatum</span>
+                <span className="text-gray-600">{rawData.geburtsdatum ? new Date(rawData.geburtsdatum).toLocaleDateString("de-DE") : <span className="text-gray-400">—</span>}</span>
+                <span className="text-gray-400">Größe</span><span className="text-gray-600">{rawData.groesse ? `${rawData.groesse} cm` : <span className="text-gray-400">—</span>}</span>
+                <span className="text-gray-400">Gewicht</span><span className="text-gray-600">{rawData.gewicht ? `${rawData.gewicht} kg` : <span className="text-gray-400">—</span>}</span>
+              </div>
+            </div>
+
+            {/* Anamnese */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Anamnese</h3>
+              {anamnese.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Noch keine Einträge. Einträge werden automatisch aus ausgefüllten Aufklärungsbögen übernommen.</p>
+              ) : (
+                <div className="space-y-2">
+                  {anamnese.map((entry, i) => (
+                    <div key={entry.questionId || i} className="flex gap-3 py-2 border-b border-gray-50 last:border-0">
+                      <div className="flex-shrink-0 w-20 sm:w-24">
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {entry.addedAt ? new Date(entry.addedAt).toLocaleDateString("de-DE") : "—"}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-700 leading-snug">{entry.questionLabel}</p>
+                        {entry.detailText && (
+                          <p className="text-xs text-amber-700 mt-0.5 leading-snug">{entry.detailText}</p>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-400 mt-1" title="Positiver Befund" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {tab === "overview" && (() => {
         const patientBeh = behandlungen.filter(b => b._patientId === patientDbId).sort((a, b) => (b.datum || b._createdAt || "").localeCompare(a.datum || a._createdAt || ""));

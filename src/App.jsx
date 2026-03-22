@@ -1492,7 +1492,7 @@ export default function EphiaInvoice() {
         entry._createdAt = created.created_at || new Date().toISOString();
       } catch (e) { console.error("Failed to save consent form:", e); }
     }
-    // Auto-sync demographics from consent form to patient profile
+    // Auto-sync demographics + anamnese (Ja answers) from consent form to patient profile
     try {
       const demoFields = {};
       if (consentData.answers) {
@@ -1501,12 +1501,32 @@ export default function EphiaInvoice() {
         if (consentData.answers.gewicht) demoFields.gewicht = consentData.answers.gewicht;
         if (consentData.answers.geschlecht) demoFields.geschlecht = consentData.answers.geschlecht;
       }
-      if (Object.keys(demoFields).length > 0 && session && currentMEK && consentPatient._raw) {
+      // Build anamnese entries from Ja answers
+      const tplForAnamnese = CONSENT_TEMPLATES.find(t => t.id === consentTemplate?.id);
+      const allQs = tplForAnamnese ? [...tplForAnamnese.questions, ...(tplForAnamnese.additionalQuestionsWomen || [])] : [];
+      const today = new Date().toISOString().slice(0, 10);
+      const newAnamneseEntries = allQs
+        .filter(q => consentData.answers?.[q.id] === true)
+        .map(q => ({ questionId: q.id, questionLabel: q.label, detailText: consentData.answers?.[q.id + "_text"] || "", addedAt: today }));
+      if ((Object.keys(demoFields).length > 0 || newAnamneseEntries.length > 0) && session && currentMEK && consentPatient._raw) {
         const raw = consentPatient._raw;
         const existingData = (typeof raw.data === "object" && raw.data) ? raw.data : {};
-        const updatedPatientData = { ...existingData, ...demoFields };
-        const newPatientHash = await computePatientHash(getPatientIdentifier(updatedPatientData), currentMEK);
-        const { ciphertext, iv } = await encryptData(updatedPatientData, currentMEK);
+        // Merge demographics
+        const merged = { ...existingData, ...demoFields };
+        // Merge anamnese: add new entries (by questionId), update detailText if changed but keep original addedAt
+        const existingAnamnese = existingData.anamnese || [];
+        const updatedAnamnese = [...existingAnamnese];
+        for (const entry of newAnamneseEntries) {
+          const idx = updatedAnamnese.findIndex(e => e.questionId === entry.questionId);
+          if (idx === -1) {
+            updatedAnamnese.push(entry);
+          } else if (entry.detailText && entry.detailText !== updatedAnamnese[idx].detailText) {
+            updatedAnamnese[idx] = { ...updatedAnamnese[idx], detailText: entry.detailText };
+          }
+        }
+        merged.anamnese = updatedAnamnese;
+        const newPatientHash = await computePatientHash(getPatientIdentifier(merged), currentMEK);
+        const { ciphertext, iv } = await encryptData(merged, currentMEK);
         await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${raw.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Prefer": "return=representation" },
@@ -1530,7 +1550,7 @@ export default function EphiaInvoice() {
           setSelectedPatient({ vorname: ud.vorname || "", nachname: ud.nachname || "", email: ud.email || "", _raw: updated });
         }
       }
-    } catch (e) { console.error("Error syncing consent demographics to patient:", e); }
+    } catch (e) { console.error("Error syncing consent demographics/anamnese to patient:", e); }
 
     setInvoices(prev => [entry, ...prev]);
     setPreviewTab("consent");
