@@ -32,7 +32,7 @@ export function flashOrtField(inputEl) {
 
 // Auto-lookup city name from German PLZ via free API
 const plzCache = {};
-async function lookupPlz(plz) {
+export async function lookupPlz(plz) {
   if (!plz || plz.length !== 5 || !/^\d{5}$/.test(plz)) return null;
   if (plzCache[plz] !== undefined) return plzCache[plz];
   try {

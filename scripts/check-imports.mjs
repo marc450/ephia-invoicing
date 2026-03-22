@@ -17,6 +17,7 @@ const HELPERS = [
   "fmt", "fmtDate", "fmtPhone", "parseDE", "evalAmount", "fmtUnits",
   "buildLineItems", "calcWeightedForGesamt", "calcGesamt", "calcGoaBetrag",
   "parsePlzOrt", "combinePlzOrt", "nextInvoiceNumber", "toDE", "flashOrtField",
+  "lookupPlz",
 ];
 const CONSTANTS = [
   "FACE_IMAGE_B64", "ZUSCHLAEGE", "DEFAULT_PRACTICE", "AUTO_LOGOUT_MS",
@@ -25,12 +26,14 @@ const CONSTANTS = [
 ];
 const CONSENT = ["CONSENT_TEMPLATES"];
 const UI = ["spawnConfetti"];
+const CRYPTO = ["getPatientIdentifier", "computePatientHash", "encryptData", "decryptData"];
 
 const ALL_SYMBOLS = [
   ...HELPERS.map(s => ({ name: s, from: "utils/helpers" })),
   ...CONSTANTS.map(s => ({ name: s, from: "constants/index" })),
   ...CONSENT.map(s => ({ name: s, from: "components/consent/consentTemplates" })),
   ...UI.map(s => ({ name: s, from: "components/ui/ConfettiBurst" })),
+  ...CRYPTO.map(s => ({ name: s, from: "lib/crypto" })),
 ];
 
 function walk(dir) {
@@ -52,7 +55,16 @@ let errors = 0;
 for (const file of componentFiles) {
   const src = readFileSync(file, "utf8");
   const rel = relative(ROOT + "/..", file);
-  const importBlock = src.split("\n").filter(l => l.startsWith("import")).join("\n");
+  // Extract full import block (including multi-line imports)
+  const importBlock = (() => {
+    const lines = src.split("\n");
+    let block = "", inImport = false;
+    for (const l of lines) {
+      if (l.startsWith("import ")) { inImport = true; block += l + "\n"; }
+      else if (inImport) { block += l + "\n"; if (l.includes("from ")) inImport = false; }
+    }
+    return block;
+  })();
 
   for (const { name, from } of ALL_SYMBOLS) {
     // Skip the file that defines this symbol

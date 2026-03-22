@@ -17,10 +17,10 @@ import {
   wrapMEK, unwrapMEK, encryptData, decryptData,
   exportMEKToBase64, importMEKFromBase64,
   storeMEKInSession, loadMEKFromSession, clearMEKFromSession,
-  computePatientHash
+  computePatientHash, getPatientIdentifier
 } from "./lib/crypto";
 import { DEFAULT_PRACTICE, AUTO_LOGOUT_MS, ZUSCHLAEGE, BOTOX_GOA_ITEMS, PUNKTWERT, SACHKOSTEN_INFO, ICD10_CODES, PRIORITY_COUNTRIES, OTHER_COUNTRIES } from "./constants";
-import { parseDE, evalAmount, fmt, fmtDate, buildLineItems, calcWeightedForGesamt, calcGoaBetrag, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, flashOrtField } from "./utils/helpers";
+import { parseDE, evalAmount, fmt, fmtDate, buildLineItems, calcWeightedForGesamt, calcGoaBetrag, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, flashOrtField, lookupPlz } from "./utils/helpers";
 import { LoginScreen, SignUpScreen, ResetPasswordScreen, SetNewPasswordScreen } from "./components/auth/AuthScreens";
 import ImpressumPage from "./components/legal/Impressum";
 import DatenschutzPage from "./components/legal/Datenschutz";
