@@ -151,7 +151,7 @@ export default function EphiaInvoice() {
   const [consentPatient, setConsentPatient] = useState(null); // patient for active consent flow
   const [consentTemplate, setConsentTemplate] = useState(null); // active consent template
   const [consentWarningPatient, setConsentWarningPatient] = useState(null); // patient pending consent warning confirmation
-  const [pendingDocBehId, setPendingDocBehId] = useState(null); // Behandlung ID to link next created doc to
+  const pendingDocBehIdRef = useRef(null); // Behandlung ID to link next created doc to
   const [invoices, setInvoices] = useState([]);
   const [behandlungen, setBehandlungen] = useState([]);
   const [activityLog, setActivityLog] = useState([]);
@@ -1041,8 +1041,8 @@ export default function EphiaInvoice() {
       try {
         const genDocType = hvOnlyMode ? "hv" : "rechnung";
         const genPatientId = createForPatient?._raw?.id || createForPatient?.id || entry._patientDbId || null;
-        const genBehandlungId = pendingDocBehId || entry._behandlungId || null;
-        if (pendingDocBehId) { entry._behandlungId = pendingDocBehId; setPendingDocBehId(null); }
+        const genBehandlungId = pendingDocBehIdRef.current || entry._behandlungId || null;
+        if (pendingDocBehIdRef.current) { entry._behandlungId = pendingDocBehIdRef.current; pendingDocBehIdRef.current = null; }
 
         const amendingEntry = invoices.find((inv) => inv.id === amendingId);
         if (amendingEntry && amendingEntry._supabaseId) {
@@ -1536,14 +1536,14 @@ export default function EphiaInvoice() {
     // Persist to Supabase with E2EE
     if (session) {
       try {
-        const consentBehId = pendingDocBehId || entry._behandlungId || null;
+        const consentBehId = pendingDocBehIdRef.current || entry._behandlungId || null;
         entry._behandlungId = consentBehId;
         const created = await saveDocAdapter(entry, "aufklaerung", patientDbId, consentBehId);
         entry._supabaseId = created.id;
         entry._docType = "aufklaerung";
         entry._createdAt = created.created_at || new Date().toISOString();
         logActivity(patientDbId, "aufklaerung", created.id, "created", "Aufklärungsbogen erstellt");
-        setPendingDocBehId(null);
+        pendingDocBehIdRef.current = null;
       } catch (e) { console.error("Failed to save consent form:", e); }
     }
     // Auto-sync demographics + anamnese (Ja answers) from consent form to patient profile
@@ -3326,10 +3326,10 @@ export default function EphiaInvoice() {
             onViewHV={(inv) => { setPreviewTab("honorar"); navigateToPreview(inv); }}
             onDownload={handleDownloadInvoice}
             onDownloadHV={handleDownloadHV}
-            onCreateInvoice={(p, behId) => { if (behId) setPendingDocBehId(behId); handleNewForPatient(p); }}
-            onNewHV={(behId) => { if (behId) setPendingDocBehId(behId); handleNewHVForPatient(selectedPatient); }}
+            onCreateInvoice={(p, behId) => { pendingDocBehIdRef.current = behId || null; handleNewForPatient(p); }}
+            onNewHV={(behId) => { pendingDocBehIdRef.current = behId || null; handleNewHVForPatient(selectedPatient); }}
             onStartConsent={(p, behId) => {
-              if (behId) setPendingDocBehId(behId);
+              pendingDocBehIdRef.current = behId || null;
               setConsentWarningPatient(p);
             }}
             onViewConsent={(inv) => { setPreviewTab("consent"); navigateToPreview(inv); }}
