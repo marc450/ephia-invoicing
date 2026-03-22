@@ -16,6 +16,7 @@ export default function BehandlungAddPanel({
   newTreatmentNotes, setNewTreatmentNotes,
   newTreatmentAmount, setNewTreatmentAmount,
   newTreatmentFacePhoto, setNewTreatmentFacePhoto,
+  newTreatmentBehId, setNewTreatmentBehId,
   onUpdateInvoice,
   setCenterView,
   setViewingTreatment, setPendingQuickInvoice,
@@ -159,6 +160,7 @@ export default function BehandlungAddPanel({
               id: standaloneId,
               patient: { vorname: patient.vorname, nachname: patient.nachname, email: patient.email || email },
               _patientDbId: patientDbId || null,
+              _behandlungId: newTreatmentBehId || null,
               invoiceMeta: { nummer: "\u2014", datum: "" },
               lineItems: [],
               treatmentDoc: treatmentData,
@@ -176,6 +178,7 @@ export default function BehandlungAddPanel({
           setNewTreatmentDate(new Date().toISOString().slice(0, 10));
           setNewTreatmentNotes("");
           setNewTreatmentAmount("");
+          if (setNewTreatmentBehId) setNewTreatmentBehId(null);
           setEditingTreatmentInv(null);
 
           if (openQuickInvoice && savedEntry) {

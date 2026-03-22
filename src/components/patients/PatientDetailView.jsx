@@ -39,7 +39,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
   const [newTreatmentNotes, setNewTreatmentNotes] = useState("");
   const [newTreatmentAmount, setNewTreatmentAmount] = useState("");
   const [newTreatmentFacePhoto, setNewTreatmentFacePhoto] = useState("");
-
+  const [newTreatmentBehId, setNewTreatmentBehId] = useState(null);
 
   // Quick invoice pending (bridges behandlungen_add -> behandlung_detail)
   const [pendingQuickInvoice, setPendingQuickInvoice] = useState(false);
@@ -229,7 +229,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
                 expandedBeh={expandedBeh} setExpandedBeh={setExpandedBeh}
                 onCreateBehandlung={onCreateBehandlung} onDeleteBehandlung={onDeleteBehandlung}
                 onStartConsent={onStartConsent} onNewHV={onNewHV} onCreateInvoice={onCreateInvoice}
-                setCenterView={setCenterView}
+                setCenterView={setCenterView} setNewTreatmentBehId={setNewTreatmentBehId}
                 onViewConsent={onViewConsent} onViewHV={onViewHV} onView={onView}
                 setViewingTreatment={setViewingTreatment} setConfirmDeleteBeh={setConfirmDeleteBeh}
                 hasConsentRisks={hasConsentRisks} getDocLabel={getDocLabel} getDocStatus={getDocStatus} handleDocClick={handleDocClick}
@@ -271,7 +271,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-800">{editingTreatmentInv ? "Behandlung bearbeiten" : "Neue Behandlungsdokumentation"}</h2>
-              <button className="p-1 text-gray-400 hover:text-gray-600 transition" onClick={() => { setCenterView("timeline"); setEditingTreatmentInv(null); }}>
+              <button className="p-1 text-gray-400 hover:text-gray-600 transition" onClick={() => { setCenterView("timeline"); setEditingTreatmentInv(null); setNewTreatmentBehId(null); }}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -287,6 +287,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
               newTreatmentNotes={newTreatmentNotes} setNewTreatmentNotes={setNewTreatmentNotes}
               newTreatmentAmount={newTreatmentAmount} setNewTreatmentAmount={setNewTreatmentAmount}
               newTreatmentFacePhoto={newTreatmentFacePhoto} setNewTreatmentFacePhoto={setNewTreatmentFacePhoto}
+              newTreatmentBehId={newTreatmentBehId} setNewTreatmentBehId={setNewTreatmentBehId}
               onUpdateInvoice={onUpdateInvoice}
               setCenterView={setCenterView}
               setViewingTreatment={setViewingTreatment} setPendingQuickInvoice={setPendingQuickInvoice}

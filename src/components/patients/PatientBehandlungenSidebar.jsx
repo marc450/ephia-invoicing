@@ -6,7 +6,7 @@ export default function PatientBehandlungenSidebar({
   newBehandlungOpen, setNewBehandlungOpen, newBehDatum, setNewBehDatum, newBehZeit, setNewBehZeit,
   expandedBeh, setExpandedBeh,
   onCreateBehandlung, onDeleteBehandlung, onStartConsent, onNewHV, onCreateInvoice,
-  setCenterView,
+  setCenterView, setNewTreatmentBehId,
   onViewConsent, onViewHV, onView,
   setViewingTreatment, setConfirmDeleteBeh,
   hasConsentRisks, getDocLabel, getDocStatus, handleDocClick,
@@ -101,7 +101,7 @@ export default function PatientBehandlungenSidebar({
                   <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-4 flex-wrap">
                     <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onStartConsent && onStartConsent(patient); }}>+ Aufkl&auml;rung</button>
                     <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onNewHV && onNewHV(); }}>+ HV</button>
-                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { setCenterView("behandlungen_add"); }}>+ Behandlungsdoku</button>
+                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { if (setNewTreatmentBehId) setNewTreatmentBehId(beh._id); setCenterView("behandlungen_add"); }}>+ Behandlungsdoku</button>
                     <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onCreateInvoice && onCreateInvoice(patient); }}>+ Rechnung</button>
                   </div>
                   {/* Delete Behandlung */}
