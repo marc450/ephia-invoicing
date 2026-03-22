@@ -1681,7 +1681,7 @@ export default function EphiaInvoice() {
       pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
       return { pdf, blob: pdf.output("blob") };
     } finally {
-      // Restore hidden parents
+      restoreRiskHighlights();
       hiddenParents.forEach(({ node: n, prev }) => { n.style.cssText = prev; });
     }
   };
@@ -1716,6 +1716,11 @@ export default function EphiaInvoice() {
   const generateMultiPagePDF = async (elementId) => {
     let el = document.getElementById(elementId);
     if (!el) return null;
+    // Temporarily remove risk highlights so they don't appear in the PDF
+    const riskEls = el.querySelectorAll(".risk-highlight");
+    const savedStyles = [];
+    riskEls.forEach(re => { savedStyles.push(re.style.cssText); re.style.background = "transparent"; re.style.color = ""; re.querySelectorAll("td").forEach(td => { td.style.color = ""; }); });
+    const restoreRiskHighlights = () => { riskEls.forEach((re, i) => { re.style.cssText = savedStyles[i] || ""; }); };
     const hiddenParents = [];
     let node = el;
     while (node && node !== document.body) {
@@ -1818,6 +1823,7 @@ export default function EphiaInvoice() {
       }
       return { pdf, blob: pdf.output("blob") };
     } finally {
+      restoreRiskHighlights();
       hiddenParents.forEach(({ node: n, prev }) => { n.style.cssText = prev; });
     }
   };

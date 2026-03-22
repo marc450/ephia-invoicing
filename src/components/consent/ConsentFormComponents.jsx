@@ -388,20 +388,24 @@ export default function ConsentFormPreview({ template, consentData, patient, pra
 
   const totalPages = pagesA + pagesB + pagesC;
 
-  // Build question rows
+  // Build question rows (isJa = true for "Ja" answers to highlight risks)
   const questionRows = [];
   template.questions.forEach((q, qi) => {
-    questionRows.push({ type: "q", num: qi + 1, label: q.label, answer: a[q.id] === true ? "Ja" : a[q.id] === false ? "Nein" : "–" });
-    if (a[q.id] && a[q.id + "_text"]) questionRows.push({ type: "detail", text: a[q.id + "_text"] });
-    if (q.subQuestion && a[q.id]) {
-      questionRows.push({ type: "sub", label: "Komplikationen?", answer: a["q13_komplikationen"] === true ? "Ja" : a["q13_komplikationen"] === false ? "Nein" : "–" });
-      if (a["q13_komplikationen"] && a["q13_komplikationen_text"]) questionRows.push({ type: "detail", text: a["q13_komplikationen_text"] });
+    const isJa = a[q.id] === true;
+    questionRows.push({ type: "q", num: qi + 1, label: q.label, answer: isJa ? "Ja" : a[q.id] === false ? "Nein" : "–", isJa });
+    if (isJa && a[q.id + "_text"]) questionRows.push({ type: "detail", text: a[q.id + "_text"], isJa: true });
+    if (q.subQuestion && isJa) {
+      const subJa = a["q13_komplikationen"] === true;
+      questionRows.push({ type: "sub", label: "Komplikationen?", answer: subJa ? "Ja" : a["q13_komplikationen"] === false ? "Nein" : "–", isJa: subJa });
+      if (subJa && a["q13_komplikationen_text"]) questionRows.push({ type: "detail", text: a["q13_komplikationen_text"], isJa: true });
     }
   });
+  const hasRiskAnswers = questionRows.some(r => r.isJa);
   let nextNum = template.questions.length + 1;
   if (a.geschlecht === "w" && template.additionalQuestionsWomen) {
     template.additionalQuestionsWomen.forEach(q => {
-      questionRows.push({ type: "q", num: nextNum++, label: q.label, answer: a[q.id] === true ? "Ja" : a[q.id] === false ? "Nein" : "–" });
+      const isJa = a[q.id] === true;
+      questionRows.push({ type: "q", num: nextNum++, label: q.label, answer: isJa ? "Ja" : a[q.id] === false ? "Nein" : "–", isJa });
     });
   }
 
@@ -493,23 +497,23 @@ export default function ConsentFormPreview({ template, consentData, patient, pra
         <tbody>
           {questionRows.map((row, i) => {
             if (row.type === "q") return (
-              <tr key={i} style={{ borderBottom: "0.5px solid #e5e5e5" }}>
+              <tr key={i} className={row.isJa ? "risk-highlight" : ""} style={{ borderBottom: "0.5px solid #e5e5e5", ...(row.isJa ? { background: "#fef3c7" } : {}) }}>
                 <td style={{ padding: "4px 6px 4px 0", verticalAlign: "top", color: "#888" }}>{row.num || ""}</td>
                 <td style={{ padding: "4px 6px" }}>{row.label}</td>
-                <td style={{ padding: "4px 6px", textAlign: "center", fontWeight: "600" }}>{row.answer}</td>
+                <td style={{ padding: "4px 6px", textAlign: "center", fontWeight: "600", ...(row.isJa ? { color: "#b45309" } : {}) }}>{row.answer}</td>
               </tr>
             );
             if (row.type === "sub") return (
-              <tr key={i} style={{ borderBottom: "0.5px solid #e5e5e5", background: "#fafafa" }}>
+              <tr key={i} className={row.isJa ? "risk-highlight" : ""} style={{ borderBottom: "0.5px solid #e5e5e5", background: row.isJa ? "#fef3c7" : "#fafafa" }}>
                 <td style={{ padding: "3px 6px 3px 0" }}></td>
                 <td style={{ padding: "3px 6px", fontSize: "9px", color: "#555" }}>↳ {row.label}</td>
-                <td style={{ padding: "3px 6px", textAlign: "center", fontWeight: "600", fontSize: "9px" }}>{row.answer}</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", fontWeight: "600", fontSize: "9px", ...(row.isJa ? { color: "#b45309" } : {}) }}>{row.answer}</td>
               </tr>
             );
             if (row.type === "detail") return (
-              <tr key={i} style={{ borderBottom: "0.5px solid #e5e5e5" }}>
+              <tr key={i} className={row.isJa ? "risk-highlight" : ""} style={{ borderBottom: "0.5px solid #e5e5e5", ...(row.isJa ? { background: "#fef3c7" } : {}) }}>
                 <td></td>
-                <td colSpan={2} style={{ padding: "2px 6px", fontStyle: "italic", color: "#666", fontSize: "9px" }}>→ {row.text}</td>
+                <td colSpan={2} style={{ padding: "2px 6px", fontStyle: "italic", color: row.isJa ? "#92400e" : "#666", fontSize: "9px" }}>→ {row.text}</td>
               </tr>
             );
             return null;

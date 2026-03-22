@@ -26,6 +26,18 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
     country: rawData.country || "Deutschland",
   });
   const patientDbId = patient._raw ? patient._raw.id : patient.id;
+
+  // Check if a consent form has any "Ja" (risk) answers
+  const hasConsentRisks = (inv) => {
+    const a = inv.consentData?.answers || inv.consentData || {};
+    const tpl = CONSENT_TEMPLATES.find(t => t.id === (inv.consentData?.templateId));
+    if (!tpl) return false;
+    for (const q of tpl.questions) { if (a[q.id] === true) return true; }
+    if (tpl.additionalQuestionsWomen && a.geschlecht === "w") {
+      for (const q of tpl.additionalQuestionsWomen) { if (a[q.id] === true) return true; }
+    }
+    return false;
+  };
   const matchingInvoices = invoices.filter((inv) => {
     if (inv._patientDbId && patientDbId) return inv._patientDbId === patientDbId;
     const invEmail = ((inv.patient || {}).email || "").toLowerCase();
@@ -294,10 +306,11 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
         const getDocStatus = (inv) => {
           if (inv._consentForm || inv._docType === "aufklaerung") {
             const sigs = inv.consentData?._signatures;
-            if (inv.consentData?.refused) return { label: "Abgelehnt", color: "text-red-500" };
-            if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600" };
-            if (sigs?.patient) return { label: "Ärzt:in fehlt", color: "text-amber-500" };
-            return { label: "Entwurf", color: "text-gray-400" };
+            const risk = hasConsentRisks(inv);
+            if (inv.consentData?.refused) return { label: "Abgelehnt", color: "text-red-500", risk };
+            if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600", risk };
+            if (sigs?.patient) return { label: "Ärzt:in fehlt", color: "text-amber-500", risk };
+            return { label: "Entwurf", color: "text-gray-400", risk };
           }
           if (inv._hvOnly || inv._docType === "hv") {
             const sigs = inv._signatures;
@@ -406,6 +419,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
                               <span className="text-[10px] text-gray-400 w-3">📄</span>
                               <span className="text-xs text-gray-700">{getDocLabel(doc)}</span>
                               {doc.invoiceMeta?.nummer && doc.invoiceMeta.nummer !== "—" && <span className="text-[10px] text-gray-400">#{doc.invoiceMeta.nummer}</span>}
+                              {status.risk && <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">Risiko</span>}
                             </div>
                             <span className={`text-[10px] ${status.color}`}>{status.label}</span>
                           </button>
@@ -444,6 +458,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
                         <span className="text-xs text-gray-700">{getDocLabel(doc)}</span>
                         {doc.invoiceMeta?.nummer && doc.invoiceMeta.nummer !== "—" && <span className="text-[10px] text-gray-400">#{doc.invoiceMeta.nummer}</span>}
                         {doc.invoiceMeta?.datum && <span className="text-[10px] text-gray-400">{fmtDate(doc.invoiceMeta.datum)}</span>}
+                        {status.risk && <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">Risiko</span>}
                       </div>
                       <span className={`text-[10px] ${status.color}`}>{status.label}</span>
                     </button>
@@ -650,6 +665,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
                         ? <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Ärzt:in fehlt</span>
                         : <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">Entwurf</span>
                       }
+                      {hasConsentRisks(inv) && <span className="inline-flex items-center ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded" title="Risikoantworten vorhanden">Risiko</span>}
                     </td>
                     <td className="hidden sm:table-cell px-3 py-3 align-middle"><span className="text-xs text-gray-400">{createdAt}</span></td>
                     <td className="px-5 py-3 text-right align-middle" onClick={(e) => e.stopPropagation()}>
