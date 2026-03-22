@@ -20,7 +20,7 @@ export default function PatientTimeline({
         entityType: inv._docType || (inv._consentForm ? "aufklaerung" : inv._hvOnly ? "hv" : inv._standalone ? "behandlungsdoku" : "rechnung"),
         entityId: inv._supabaseId,
         actionType: "created",
-        description: `${inv._consentForm || inv._docType === "aufklaerung" ? "Aufklärungsbogen" : inv._hvOnly || inv._docType === "hv" ? "Honorarvereinbarung" : inv._standalone || inv._docType === "behandlungsdoku" ? "Behandlungsdoku" : "Rechnung"} erstellt${inv.invoiceMeta?.nummer && inv.invoiceMeta.nummer !== "—" ? ` (${inv.invoiceMeta.nummer})` : ""}`,
+        description: `${inv._consentForm || inv._docType === "aufklaerung" ? "Aufklärungsbogen" : inv._hvOnly || inv._docType === "hv" ? "Honorarvereinbarung" : inv._standalone || inv._docType === "behandlungsdoku" ? "Behandlungsdoku" : "Rechnung"} erstellt${inv.invoiceMeta?.nummer && inv.invoiceMeta.nummer !== "\u2014" ? ` (${inv.invoiceMeta.nummer})` : ""}`,
         _createdAt: inv._createdAt || inv.savedAt,
         _inv: inv,
       }));
@@ -96,11 +96,11 @@ export default function PatientTimeline({
   return (
     <>
       {/* Timeline header */}
-      <div className="px-4 py-3 border-b border-gray-100">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Historie</h3>
-        <div className="flex gap-2 items-center">
-          <input type="text" placeholder="Aktivitäten durchsuchen..." className="flex-1 border border-gray-200 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineSearch} onChange={e => setTimelineSearch(e.target.value)} />
-          <select className="border border-gray-200 rounded px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineFilter} onChange={e => setTimelineFilter(e.target.value)}>
+      <div className="px-5 py-4 border-b border-gray-100">
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Historie</h3>
+        <div className="flex flex-col gap-2">
+          <input type="text" placeholder="Durchsuchen..." className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineSearch} onChange={e => setTimelineSearch(e.target.value)} />
+          <select className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineFilter} onChange={e => setTimelineFilter(e.target.value)}>
             <option value="alle">Alle</option>
             <option value="aufklaerung">Aufkl&auml;rung</option>
             <option value="hv">HV</option>
@@ -115,23 +115,23 @@ export default function PatientTimeline({
       {/* Timeline entries grouped by month */}
       <div>
         {Object.keys(groupedTimeline).length === 0 && (
-          <div className="px-4 py-8 text-center text-gray-400 text-xs">Noch keine Aktivit&auml;ten vorhanden.</div>
+          <div className="px-5 py-10 text-center text-gray-400 text-sm">Noch keine Aktivit&auml;ten vorhanden.</div>
         )}
         {Object.keys(groupedTimeline).sort().reverse().map(key => {
           const group = groupedTimeline[key];
           return (
             <div key={key}>
-              <div className="px-4 py-2 bg-gray-50/70 border-b border-gray-100">
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{group.label}</span>
+              <div className="px-5 py-2.5 bg-gray-50/70 border-b border-gray-100">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{group.label}</span>
               </div>
               {group.entries.map(entry => (
-                <div key={entry._id || entry.entityId || Math.random()} className="flex gap-3 py-2.5 px-4 hover:bg-gray-50 transition cursor-pointer border-b border-gray-50" onClick={() => handleTimelineClick(entry)}>
-                  <span className="text-sm flex-shrink-0 mt-0.5">{entityIcon(entry.entityType)}</span>
+                <div key={entry._id || entry.entityId || Math.random()} className="flex gap-3 py-3 px-5 hover:bg-gray-50 transition cursor-pointer border-b border-gray-50" onClick={() => handleTimelineClick(entry)}>
+                  <span className="text-base flex-shrink-0 mt-0.5">{entityIcon(entry.entityType)}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-700">{entry.description}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{entry._createdAt ? new Date(entry._createdAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}</p>
+                    <p className="text-sm text-gray-700">{entry.description}</p>
+                    <p className="text-xs text-gray-400 mt-1">{entry._createdAt ? new Date(entry._createdAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}</p>
                   </div>
-                  <span className={`text-[10px] flex-shrink-0 mt-0.5 ${entityActionColor(entry.actionType)}`}>
+                  <span className={`text-xs flex-shrink-0 mt-0.5 ${entityActionColor(entry.actionType)}`}>
                     {entry.actionType === "created" ? "Erstellt" : entry.actionType === "updated" ? "Aktualisiert" : entry.actionType === "deleted" ? "Gelöscht" : ""}
                   </span>
                 </div>

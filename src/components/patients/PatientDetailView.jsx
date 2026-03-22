@@ -179,12 +179,12 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
   return (
     <div>
       {/* Back button */}
-      <div className="mb-3">
-        <button className="text-xs text-gray-400 hover:text-gray-600" onClick={onBack}>&larr; Zur&uuml;ck zur Patient:innenliste</button>
+      <div className="mb-4">
+        <button className="text-sm text-gray-400 hover:text-gray-600 transition" onClick={onBack}>&larr; Zur&uuml;ck zur Patient:innenliste</button>
       </div>
 
       {/* Three-column layout — separate cards */}
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start">
+      <div className="flex flex-col lg:flex-row gap-5 lg:gap-6 items-start">
         {/* ═══════════════════ LEFT SIDEBAR ═══════════════════ */}
         <div className="w-full lg:w-auto bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex-shrink-0">
           <PatientLeftSidebar
@@ -201,19 +201,19 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
         {/* ═══════════════════ CENTER: Behandlungen ═══════════════════ */}
         <div className="w-full lg:flex-1 min-w-0">
           {/* Data Highlights */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-4 lg:mb-5">
-            <div className="grid grid-cols-3 gap-4 px-5 py-4">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-5 lg:mb-6">
+            <div className="grid grid-cols-3 gap-6 px-6 py-5">
               <div>
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Erstellt am</div>
-                <div className="text-xs text-gray-700 font-medium mt-1">{fmtDate(patient._raw?.created_at?.slice(0, 10))}</div>
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Erstellt am</div>
+                <div className="text-sm text-gray-800 font-medium mt-1.5">{fmtDate(patient._raw?.created_at?.slice(0, 10))}</div>
               </div>
               <div>
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Behandlungen</div>
-                <div className="text-xs text-gray-700 font-medium mt-1">{patientBeh.length}</div>
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Behandlungen</div>
+                <div className="text-sm text-gray-800 font-medium mt-1.5">{patientBeh.length}</div>
               </div>
               <div>
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Letzte Aktivit&auml;t</div>
-                <div className="text-xs text-gray-700 font-medium mt-1">{lastActivity ? fmtDate(lastActivity._createdAt?.slice(0, 10)) : "--"}</div>
+                <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Letzte Aktivit&auml;t</div>
+                <div className="text-sm text-gray-800 font-medium mt-1.5">{lastActivity ? fmtDate(lastActivity._createdAt?.slice(0, 10)) : "--"}</div>
               </div>
             </div>
           </div>
@@ -252,7 +252,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
         </div>
 
         {/* ═══════════════════ RIGHT SIDEBAR: Historie ═══════════════════ */}
-        <div className="w-full lg:w-80 xl:w-96 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex-shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+        <div className="w-full lg:w-96 xl:w-[28rem] bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex-shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
           <PatientTimeline
             patient={patient} patientDbId={patientDbId}
             matchingInvoices={matchingInvoices} patientBeh={patientBeh}
