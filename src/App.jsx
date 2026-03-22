@@ -2182,7 +2182,7 @@ export default function EphiaInvoice() {
               <h3 className="text-sm font-semibold text-gray-800">Wichtiger Hinweis</h3>
             </div>
             <p className="text-xs text-gray-600 mb-4 leading-relaxed">
-              Dieser Aufklärungsbogen wurde nach bestem Wissen erstellt, kann jedoch keine rechtliche Garantie auf Vollständigkeit oder Rechtskonformität bieten. Die Verwendung erfolgt auf eigenes Risiko. Bitte prüfe, ob der Bogen den Anforderungen Deiner Praxis und der geltenden Rechtslage entspricht, und passe ihn gegebenenfalls an. EPHIA übernimmt keine Haftung für etwaige rechtliche Folgen.
+              Dieser Aufklärungsbogen ersetzt nicht das persönliche Aufklärungsgespräch zwischen Ärzt:in und Patient:in. Das individuelle Gespräch ist das rechtlich entscheidende Element der Aufklärung. Der Bogen dient lediglich als Dokumentationshilfe und Ergänzung. Bitte prüfe, ob der Bogen den Anforderungen Deiner Praxis und der geltenden Rechtslage entspricht, und passe ihn gegebenenfalls an.
             </p>
             <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
               <button className="px-3 py-2 sm:py-1.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 w-full sm:w-auto" onClick={() => setConsentWarningPatient(null)}>Abbrechen</button>
