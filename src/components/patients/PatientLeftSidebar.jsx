@@ -123,14 +123,14 @@ export default function PatientLeftSidebar({
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between">
                 <span className="text-gray-400">Geschlecht</span>
-                <span className="text-gray-600">{rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "M\u00e4nnlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht || "--"}</span>
+                <span className="text-gray-600">{rawData.geschlecht === "w" ? "Weiblich" : rawData.geschlecht === "m" ? "Männlich" : rawData.geschlecht === "d" ? "Divers" : rawData.geschlecht || "--"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Geburtsdatum</span>
                 <span className="text-gray-600">{rawData.geburtsdatum ? new Date(rawData.geburtsdatum).toLocaleDateString("de-DE") : "--"}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Gr\u00f6\u00dfe</span>
+                <span className="text-gray-400">Größe</span>
                 <span className="text-gray-600">{rawData.groesse ? `${rawData.groesse} cm` : "--"}</span>
               </div>
               <div className="flex justify-between">
@@ -151,7 +151,7 @@ export default function PatientLeftSidebar({
         {anamneseOpen && (
           <div className="px-4 pb-3">
             {anamnese.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">Noch keine Eintr\u00e4ge. Eintr\u00e4ge werden automatisch aus ausgef\u00fcllten Aufkl\u00e4rungsb\u00f6gen \u00fcbernommen.</p>
+              <p className="text-xs text-gray-400 italic">Noch keine Einträge. Einträge werden automatisch aus ausgefüllten Aufklärungsbögen übernommen.</p>
             ) : (
               <div className="space-y-2">
                 {anamnese.map((entry, i) => (

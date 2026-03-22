@@ -105,7 +105,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
   };
 
   const getDocLabel = (inv) => {
-    if (inv._consentForm || inv._docType === "aufklaerung") return "Aufkl\u00e4rungsbogen";
+    if (inv._consentForm || inv._docType === "aufklaerung") return "Aufklärungsbogen";
     if (inv._hvOnly || inv._docType === "hv") return "Honorarvereinbarung";
     if ((inv._standalone || inv._treatmentDocOnly) || inv._docType === "behandlungsdoku") return "Behandlungsdoku";
     return "Rechnung";
@@ -117,15 +117,15 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
       const risk = hasConsentRisks(inv);
       if (inv.consentData?.refused) return { label: "Abgelehnt", color: "text-red-500", risk };
       if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600", risk };
-      if (sigs?.patient) return { label: "\u00c4rzt:in fehlt", color: "text-amber-500", risk };
+      if (sigs?.patient) return { label: "Ärzt:in fehlt", color: "text-amber-500", risk };
       return { label: "Entwurf", color: "text-gray-400", risk };
     }
     if (inv._hvOnly || inv._docType === "hv") {
       const sigs = inv._signatures;
       if (inv._signedHvUpload) return { label: "Hochgeladen", color: "text-green-600" };
       if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600" };
-      if (sigs?.patient) return { label: "\u00c4rzt:in fehlt", color: "text-amber-500" };
-      return { label: "\u2014", color: "text-gray-400" };
+      if (sigs?.patient) return { label: "Ärzt:in fehlt", color: "text-amber-500" };
+      return { label: "—", color: "text-gray-400" };
     }
     if (inv.paymentStatus === "bezahlt") return { label: "Bezahlt", color: "text-green-600" };
     return { label: "Ausstehend", color: "text-amber-500" };

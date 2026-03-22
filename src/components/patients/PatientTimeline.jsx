@@ -20,7 +20,7 @@ export default function PatientTimeline({
         entityType: inv._docType || (inv._consentForm ? "aufklaerung" : inv._hvOnly ? "hv" : inv._standalone ? "behandlungsdoku" : "rechnung"),
         entityId: inv._supabaseId,
         actionType: "created",
-        description: `${inv._consentForm || inv._docType === "aufklaerung" ? "Aufkl\u00e4rungsbogen" : inv._hvOnly || inv._docType === "hv" ? "Honorarvereinbarung" : inv._standalone || inv._docType === "behandlungsdoku" ? "Behandlungsdoku" : "Rechnung"} erstellt${inv.invoiceMeta?.nummer && inv.invoiceMeta.nummer !== "\u2014" ? ` (${inv.invoiceMeta.nummer})` : ""}`,
+        description: `${inv._consentForm || inv._docType === "aufklaerung" ? "Aufklärungsbogen" : inv._hvOnly || inv._docType === "hv" ? "Honorarvereinbarung" : inv._standalone || inv._docType === "behandlungsdoku" ? "Behandlungsdoku" : "Rechnung"} erstellt${inv.invoiceMeta?.nummer && inv.invoiceMeta.nummer !== "—" ? ` (${inv.invoiceMeta.nummer})` : ""}`,
         _createdAt: inv._createdAt || inv.savedAt,
         _inv: inv,
       }));
@@ -115,7 +115,7 @@ export default function PatientTimeline({
       <div className="px-4 py-3 border-b border-gray-100">
         <h3 className="text-sm font-semibold text-gray-700 mb-2">Historie</h3>
         <div className="flex gap-2 items-center">
-          <input type="text" placeholder="Aktivit\u00e4ten durchsuchen..." className="flex-1 border border-gray-200 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineSearch} onChange={e => setTimelineSearch(e.target.value)} />
+          <input type="text" placeholder="Aktivitäten durchsuchen..." className="flex-1 border border-gray-200 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineSearch} onChange={e => setTimelineSearch(e.target.value)} />
           <select className="border border-gray-200 rounded px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineFilter} onChange={e => setTimelineFilter(e.target.value)}>
             <option value="alle">Alle</option>
             <option value="aufklaerung">Aufkl&auml;rung</option>
@@ -148,7 +148,7 @@ export default function PatientTimeline({
                     <p className="text-[10px] text-gray-400 mt-0.5">{entry._createdAt ? new Date(entry._createdAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}</p>
                   </div>
                   <span className={`text-[10px] flex-shrink-0 mt-0.5 ${entityActionColor(entry.actionType)}`}>
-                    {entry.actionType === "created" ? "Erstellt" : entry.actionType === "updated" ? "Aktualisiert" : entry.actionType === "deleted" ? "Gel\u00f6scht" : ""}
+                    {entry.actionType === "created" ? "Erstellt" : entry.actionType === "updated" ? "Aktualisiert" : entry.actionType === "deleted" ? "Gelöscht" : ""}
                   </span>
                 </div>
               ))}
