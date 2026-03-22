@@ -220,24 +220,6 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
             />
           )}
 
-          {centerView === "behandlungen_add" && (
-            <BehandlungAddPanel
-              patient={patient} email={email} rawData={rawData} patientDbId={patientDbId}
-              matchingInvoices={matchingInvoices} rechnungsInvoices={rechnungsInvoices} practice={practice}
-              editingTreatmentInv={editingTreatmentInv} setEditingTreatmentInv={setEditingTreatmentInv}
-              newTreatmentMarkers={newTreatmentMarkers} setNewTreatmentMarkers={setNewTreatmentMarkers}
-              newTreatmentInvoiceId={newTreatmentInvoiceId} setNewTreatmentInvoiceId={setNewTreatmentInvoiceId}
-              newTreatmentEinheit={newTreatmentEinheit} setNewTreatmentEinheit={setNewTreatmentEinheit}
-              newTreatmentPraeparat={newTreatmentPraeparat} setNewTreatmentPraeparat={setNewTreatmentPraeparat}
-              newTreatmentDate={newTreatmentDate} setNewTreatmentDate={setNewTreatmentDate}
-              newTreatmentNotes={newTreatmentNotes} setNewTreatmentNotes={setNewTreatmentNotes}
-              newTreatmentAmount={newTreatmentAmount} setNewTreatmentAmount={setNewTreatmentAmount}
-              newTreatmentFacePhoto={newTreatmentFacePhoto} setNewTreatmentFacePhoto={setNewTreatmentFacePhoto}
-              onUpdateInvoice={onUpdateInvoice}
-              setCenterView={setCenterView}
-              setViewingTreatment={setViewingTreatment} setPendingQuickInvoice={setPendingQuickInvoice}
-            />
-          )}
         </div>
 
         {/* ═══════════════════ RIGHT SIDEBAR (Behandlungen) ═══════════════════ */}
@@ -257,6 +239,36 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
       </div>
 
       {/* ═══════════════════ MODALS ═══════════════════ */}
+
+      {/* Behandlungsdoku create/edit modal */}
+      {centerView === "behandlungen_add" && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto py-6 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-800">{editingTreatmentInv ? "Behandlung bearbeiten" : "Neue Behandlungsdokumentation"}</h2>
+              <button className="p-1 text-gray-400 hover:text-gray-600 transition" onClick={() => { setCenterView("timeline"); setEditingTreatmentInv(null); }}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <BehandlungAddPanel
+              patient={patient} email={email} rawData={rawData} patientDbId={patientDbId}
+              matchingInvoices={matchingInvoices} rechnungsInvoices={rechnungsInvoices} practice={practice}
+              editingTreatmentInv={editingTreatmentInv} setEditingTreatmentInv={setEditingTreatmentInv}
+              newTreatmentMarkers={newTreatmentMarkers} setNewTreatmentMarkers={setNewTreatmentMarkers}
+              newTreatmentInvoiceId={newTreatmentInvoiceId} setNewTreatmentInvoiceId={setNewTreatmentInvoiceId}
+              newTreatmentEinheit={newTreatmentEinheit} setNewTreatmentEinheit={setNewTreatmentEinheit}
+              newTreatmentPraeparat={newTreatmentPraeparat} setNewTreatmentPraeparat={setNewTreatmentPraeparat}
+              newTreatmentDate={newTreatmentDate} setNewTreatmentDate={setNewTreatmentDate}
+              newTreatmentNotes={newTreatmentNotes} setNewTreatmentNotes={setNewTreatmentNotes}
+              newTreatmentAmount={newTreatmentAmount} setNewTreatmentAmount={setNewTreatmentAmount}
+              newTreatmentFacePhoto={newTreatmentFacePhoto} setNewTreatmentFacePhoto={setNewTreatmentFacePhoto}
+              onUpdateInvoice={onUpdateInvoice}
+              setCenterView={setCenterView}
+              setViewingTreatment={setViewingTreatment} setPendingQuickInvoice={setPendingQuickInvoice}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Delete treatment doc confirmation */}
       {confirmDeleteTreatment && (

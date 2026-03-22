@@ -26,8 +26,6 @@ export default function BehandlungAddPanel({
 
   return (
     <div className="px-3 sm:px-5 py-4" style={{ maxWidth: 780 }}>
-      <button className="text-xs text-gray-400 hover:text-gray-600 mb-3" onClick={() => { setCenterView("timeline"); setEditingTreatmentInv(null); }}>&larr; Zur&uuml;ck</button>
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">{editingTreatmentInv ? "Behandlung bearbeiten" : "Neue Behandlung dokumentieren"}</h3>
 
       <div className="flex flex-col sm:flex-row gap-5">
         {/* Left column: Details + Notizen */}
