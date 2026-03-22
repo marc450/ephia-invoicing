@@ -195,6 +195,13 @@ export default function EphiaInvoice() {
     }
   }, [activeDocId, invoices, dataLoaded]);
 
+  // Redirect away from /aufklaerung/neu if consent state is missing
+  useEffect(() => {
+    if (isConsentPage && (!consentPatient || !consentTemplate)) {
+      navigate(selectedPatient ? `/patients/${selectedPatient.id || selectedPatient._raw?.id}` : "/patients");
+    }
+  }, [isConsentPage, consentPatient, consentTemplate]);
+
   // ─── Navigate to the right preview URL based on document type ───
   const navigateToPreview = (inv) => {
     setViewingInvoice(inv);
