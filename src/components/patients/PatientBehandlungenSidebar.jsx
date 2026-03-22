@@ -41,10 +41,11 @@ export default function PatientBehandlungenSidebar({
             <button className="px-3 py-1.5 text-xs rounded bg-gray-800 text-white hover:bg-gray-700 transition" onClick={async () => {
               if (!newBehDatum) return;
               try {
-                await onCreateBehandlung(patientDbId, { datum: newBehDatum, zeit: newBehZeit || "", status: "planned" });
+                const newId = await onCreateBehandlung(patientDbId, { datum: newBehDatum, zeit: newBehZeit || "", status: "planned" });
                 setNewBehandlungOpen(false);
                 setNewBehDatum(new Date().toISOString().slice(0, 10));
                 setNewBehZeit("");
+                if (newId) setExpandedBeh(newId);
               } catch (e) { alert("Fehler: " + e.message); }
             }}>Erstellen</button>
             <button className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition" onClick={() => setNewBehandlungOpen(false)}>Abbrechen</button>
