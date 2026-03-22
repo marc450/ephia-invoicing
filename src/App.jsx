@@ -197,8 +197,10 @@ export default function EphiaInvoice() {
   }, [activeDocId, invoices, dataLoaded]);
 
   // Redirect away from /aufklaerung/neu if consent state is missing
+  // Skip during consent completion (consentCompletingRef prevents race with navigateToPreview)
+  const consentCompletingRef = useRef(false);
   useEffect(() => {
-    if (isConsentPage && (!consentPatient || !consentTemplate)) {
+    if (isConsentPage && (!consentPatient || !consentTemplate) && !consentCompletingRef.current) {
       navigate(selectedPatient ? `/patients/${selectedPatient.id || selectedPatient._raw?.id}` : "/patients");
     }
   }, [isConsentPage, consentPatient, consentTemplate]);
@@ -1608,11 +1610,12 @@ export default function EphiaInvoice() {
 
     setInvoices(prev => [entry, ...prev]);
     setPreviewTab("consent");
+    consentCompletingRef.current = true;
     navigateToPreview(entry);
     setConsentPatient(null);
     setConsentTemplate(null);
     setSaveToast("Aufklärungsbogen gespeichert");
-    setTimeout(() => setSaveToast(""), 2500);
+    setTimeout(() => { setSaveToast(""); consentCompletingRef.current = false; }, 2500);
   };
 
   const handleSignatureComplete = async (sigs) => {
