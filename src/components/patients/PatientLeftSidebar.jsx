@@ -260,23 +260,19 @@ export default function PatientLeftSidebar({
             {anamnese.length === 0 ? (
               <p className="text-sm text-gray-400 italic">Noch keine Einträge. Einträge werden automatisch aus ausgefüllten Aufklärungsbögen übernommen.</p>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-0">
                 {anamnese.map((entry, i) => (
-                  <div key={entry.questionId || i} className="flex gap-3 py-2 border-b border-gray-50 last:border-0">
-                    <div className="flex-shrink-0 w-20">
-                      <span className="text-xs text-gray-400 font-mono">
+                  <div key={entry.questionId || i} className="py-3.5 border-b border-gray-100 last:border-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="text-xs text-gray-400">
                         {entry.addedAt ? new Date(entry.addedAt).toLocaleDateString("de-DE") : "--"}
                       </span>
+                      <span className="inline-block w-2 h-2 rounded-full bg-amber-400 flex-shrink-0 mt-0.5" title="Positiver Befund" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-700 leading-snug">{entry.questionLabel}</p>
-                      {entry.detailText && (
-                        <p className="text-sm text-amber-700 mt-0.5 leading-snug">{entry.detailText}</p>
-                      )}
-                    </div>
-                    <div className="flex-shrink-0">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 mt-1.5" title="Positiver Befund" />
-                    </div>
+                    <p className="text-sm text-gray-700 leading-relaxed">{entry.questionLabel}</p>
+                    {entry.detailText && (
+                      <p className="text-sm text-amber-700 mt-1 leading-relaxed">{entry.detailText}</p>
+                    )}
                   </div>
                 ))}
               </div>
