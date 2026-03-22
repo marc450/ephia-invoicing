@@ -233,6 +233,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
                 onViewConsent={onViewConsent} onViewHV={onViewHV} onView={onView}
                 setViewingTreatment={setViewingTreatment} setConfirmDeleteBeh={setConfirmDeleteBeh}
                 hasConsentRisks={hasConsentRisks} getDocLabel={getDocLabel} getDocStatus={getDocStatus} handleDocClick={handleDocClick}
+                onLinkDocToBehandlung={onLinkDocToBehandlung}
               />
             )}
 

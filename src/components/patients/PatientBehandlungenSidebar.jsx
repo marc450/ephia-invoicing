@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { fmtDate } from "../../utils/helpers";
 
 export default function PatientBehandlungenSidebar({
@@ -10,16 +10,45 @@ export default function PatientBehandlungenSidebar({
   onViewConsent, onViewHV, onView,
   setViewingTreatment, setConfirmDeleteBeh,
   hasConsentRisks, getDocLabel, getDocStatus, handleDocClick,
+  onLinkDocToBehandlung,
 }) {
+  const [dragOverBehId, setDragOverBehId] = useState(null);
+
+  const handleDragStart = (e, doc) => {
+    e.dataTransfer.setData("text/plain", doc._supabaseId || doc.id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e, behId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverBehId !== behId) setDragOverBehId(behId);
+  };
+
+  const handleDragLeave = (e, behId) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX, y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setDragOverBehId(null);
+    }
+  };
+
+  const handleDrop = (e, behId) => {
+    e.preventDefault();
+    setDragOverBehId(null);
+    const docId = e.dataTransfer.getData("text/plain");
+    if (docId && behId && onLinkDocToBehandlung) {
+      onLinkDocToBehandlung(docId, behId);
+    }
+  };
+
+  const standaloneDocs = matchingInvoices.filter(inv => !inv._behandlungId);
+
   return (
     <div className="flex-1 min-w-0">
-      {/* Header */}
+      {/* Header with + button */}
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Behandlungen ({patientBeh.length})</h3>
-      </div>
-
-      {/* New Behandlung button */}
-      <div className="px-5 py-3 border-b border-gray-100">
         <button className="text-sm text-blue-500 hover:text-blue-700 font-medium transition" onClick={() => setNewBehandlungOpen(true)}>+ Neue Behandlung</button>
       </div>
 
@@ -62,8 +91,15 @@ export default function PatientBehandlungenSidebar({
         {patientBeh.map(beh => {
           const behDocs = matchingInvoices.filter(inv => inv._behandlungId === beh._id);
           const isExpanded = expandedBeh === beh._id;
+          const isDragOver = dragOverBehId === beh._id;
           return (
-            <div key={beh._id} className="mb-3 border border-gray-200 rounded-lg overflow-hidden bg-white">
+            <div
+              key={beh._id}
+              className={`mb-3 border rounded-lg overflow-hidden bg-white transition-colors ${isDragOver ? "border-blue-400 bg-blue-50/30 ring-2 ring-blue-200" : "border-gray-200"}`}
+              onDragOver={(e) => handleDragOver(e, beh._id)}
+              onDragLeave={(e) => handleDragLeave(e, beh._id)}
+              onDrop={(e) => handleDrop(e, beh._id)}
+            >
               <button className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-gray-50 transition" onClick={() => setExpandedBeh(isExpanded ? null : beh._id)}>
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="text-sm font-semibold text-gray-800">{fmtDate(beh.datum)}</span>
@@ -115,30 +151,41 @@ export default function PatientBehandlungenSidebar({
         })}
       </div>
 
-      {/* Standalone documents */}
-      {(() => {
-        const standaloneDocs = matchingInvoices.filter(inv => !inv._behandlungId);
-        return standaloneDocs.length > 0 ? (
-          <div className="px-4 pb-4">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5 px-1">Einzelne Dokumente</div>
-            {standaloneDocs.map(doc => {
-              const status = getDocStatus(doc);
-              return (
-                <button key={doc._supabaseId || doc.id} className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition border-b border-gray-50" onClick={() => handleDocClick(doc)}>
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-sm text-gray-400">{"\u{1F4C4}"}</span>
-                    <span className="text-sm text-gray-700">{getDocLabel(doc)}</span>
-                    {doc.invoiceMeta?.nummer && doc.invoiceMeta.nummer !== "\u2014" && <span className="text-xs text-gray-400">#{doc.invoiceMeta.nummer}</span>}
-                    {doc.invoiceMeta?.datum && <span className="text-xs text-gray-400">{fmtDate(doc.invoiceMeta.datum)}</span>}
-                    {status.risk && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">Risiko</span>}
-                  </div>
-                  <span className={`text-xs ${status.color}`}>{status.label}</span>
-                </button>
-              );
-            })}
+      {/* Standalone documents (draggable) */}
+      {standaloneDocs.length > 0 && (
+        <div className="px-4 pb-4">
+          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5 px-1 flex items-center gap-2">
+            Einzelne Dokumente
+            {patientBeh.length > 0 && <span className="text-[10px] font-normal normal-case tracking-normal text-gray-300">Drag &amp; Drop in Behandlung</span>}
           </div>
-        ) : null;
-      })()}
+          {standaloneDocs.map(doc => {
+            const status = getDocStatus(doc);
+            return (
+              <div
+                key={doc._supabaseId || doc.id}
+                draggable={!!doc._supabaseId && patientBeh.length > 0}
+                onDragStart={(e) => handleDragStart(e, doc)}
+                className={`w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition border-b border-gray-50 ${doc._supabaseId && patientBeh.length > 0 ? "cursor-grab active:cursor-grabbing" : ""}`}
+                onClick={() => handleDocClick(doc)}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {doc._supabaseId && patientBeh.length > 0 && (
+                    <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  )}
+                  <span className="text-sm text-gray-400">{"\u{1F4C4}"}</span>
+                  <span className="text-sm text-gray-700">{getDocLabel(doc)}</span>
+                  {doc.invoiceMeta?.nummer && doc.invoiceMeta.nummer !== "\u2014" && <span className="text-xs text-gray-400">#{doc.invoiceMeta.nummer}</span>}
+                  {doc.invoiceMeta?.datum && <span className="text-xs text-gray-400">{fmtDate(doc.invoiceMeta.datum)}</span>}
+                  {status.risk && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">Risiko</span>}
+                </div>
+                <span className={`text-xs ${status.color}`}>{status.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
