@@ -3562,8 +3562,12 @@ export default function EphiaInvoice() {
                 }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                 </button>
-                <button className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50 transition" onClick={() => { setViewingInvoice(null); navigate(-1); }} title="Zurück">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <button className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition flex items-center gap-1.5" onClick={() => {
+                  setViewingInvoice(null);
+                  const patId = viewingInvoice?._patientDbId || selectedPatient?.id || selectedPatient?._raw?.id;
+                  navigate(patId ? `/patients/${patId}` : "/patients");
+                }}>
+                  Speichern &amp; schlie&szlig;en
                 </button>
               </div>
             </div>
