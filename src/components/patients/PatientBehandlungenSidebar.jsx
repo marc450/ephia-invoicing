@@ -99,10 +99,10 @@ export default function PatientBehandlungenSidebar({
                   })}
                   {/* Add document to Behandlung */}
                   <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-4 flex-wrap">
-                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onStartConsent && onStartConsent(patient); }}>+ Aufkl&auml;rung</button>
-                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onNewHV && onNewHV(); }}>+ HV</button>
+                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onStartConsent && onStartConsent(patient, beh._id); }}>+ Aufkl&auml;rung</button>
+                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onNewHV && onNewHV(beh._id); }}>+ HV</button>
                     <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { if (setNewTreatmentBehId) setNewTreatmentBehId(beh._id); setCenterView("behandlungen_add"); }}>+ Behandlungsdoku</button>
-                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onCreateInvoice && onCreateInvoice(patient); }}>+ Rechnung</button>
+                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium" onClick={() => { onCreateInvoice && onCreateInvoice(patient, beh._id); }}>+ Rechnung</button>
                   </div>
                   {/* Delete Behandlung */}
                   <div className="px-4 py-2.5 border-t border-gray-100 flex justify-end">
