@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { fmtDate } from "../../utils/helpers";
 import { CONSENT_TEMPLATES } from "../consent/consentTemplates";
 import { FACE_IMAGE_B64 } from "../../constants";
 import TreatmentDocPreview from "./TreatmentDocumentPreview";
@@ -176,66 +177,90 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
 
   // ── Render ──
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div>
       {/* Back button */}
-      <div className="px-3 sm:px-5 py-3 border-b border-gray-100">
+      <div className="mb-3">
         <button className="text-xs text-gray-400 hover:text-gray-600" onClick={onBack}>&larr; Zur&uuml;ck zur Patient:innenliste</button>
       </div>
 
-      {/* Three-column layout */}
-      <div className="flex flex-col lg:flex-row">
+      {/* Three-column layout — separate cards */}
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-start">
         {/* ═══════════════════ LEFT SIDEBAR ═══════════════════ */}
-        <PatientLeftSidebar
-          patient={patient} rawData={rawData} email={email}
-          latestFacePhoto={latestFacePhoto} profilePhotoInputRef={profilePhotoInputRef} handleProfilePhotoUpload={handleProfilePhotoUpload}
-          adressdatenOpen={adressdatenOpen} setAdressdatenOpen={setAdressdatenOpen}
-          medizinischeOpen={medizinischeOpen} setMedizinischeOpen={setMedizinischeOpen}
-          anamneseOpen={anamneseOpen} setAnamneseOpen={setAnamneseOpen}
-          anamnese={anamnese}
-          onUpdatePatient={onUpdatePatient}
-        />
-
-        {/* ═══════════════════ CENTER CONTENT ═══════════════════ */}
-        <div className="flex-1 min-w-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
-          {centerView === "timeline" && (
-            <PatientTimeline
-              patient={patient} patientDbId={patientDbId}
-              matchingInvoices={matchingInvoices} patientBeh={patientBeh}
-              activityLog={activityLog} lastActivity={lastActivity}
-              onViewConsent={onViewConsent} onViewHV={onViewHV} onView={onView}
-              setViewingTreatment={setViewingTreatment} setCenterView={setCenterView}
-            />
-          )}
-
-          {centerView === "behandlung_detail" && viewingTreatment && (
-            <BehandlungDetailPanel
-              viewingTreatment={viewingTreatment} setViewingTreatment={setViewingTreatment}
-              setCenterView={setCenterView}
-              patient={patient} rawData={rawData} invoices={invoices}
-              kleinunternehmer={kleinunternehmer} practice={practice}
-              onUpdateInvoice={onUpdateInvoice} onQuickInvoice={onQuickInvoice}
-              setConfirmDeleteTreatment={setConfirmDeleteTreatment}
-              downloadTreatmentDoc={downloadTreatmentDoc}
-              pendingQuickInvoice={pendingQuickInvoice} setPendingQuickInvoice={setPendingQuickInvoice}
-            />
-          )}
-
+        <div className="w-full lg:w-auto bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex-shrink-0">
+          <PatientLeftSidebar
+            patient={patient} rawData={rawData} email={email}
+            latestFacePhoto={latestFacePhoto} profilePhotoInputRef={profilePhotoInputRef} handleProfilePhotoUpload={handleProfilePhotoUpload}
+            adressdatenOpen={adressdatenOpen} setAdressdatenOpen={setAdressdatenOpen}
+            medizinischeOpen={medizinischeOpen} setMedizinischeOpen={setMedizinischeOpen}
+            anamneseOpen={anamneseOpen} setAnamneseOpen={setAnamneseOpen}
+            anamnese={anamnese}
+            onUpdatePatient={onUpdatePatient}
+          />
         </div>
 
-        {/* ═══════════════════ RIGHT SIDEBAR (Behandlungen) ═══════════════════ */}
-        <PatientBehandlungenSidebar
-          patientBeh={patientBeh} matchingInvoices={matchingInvoices} patientDbId={patientDbId} patient={patient}
-          newBehandlungOpen={newBehandlungOpen} setNewBehandlungOpen={setNewBehandlungOpen}
-          newBehDatum={newBehDatum} setNewBehDatum={setNewBehDatum}
-          newBehZeit={newBehZeit} setNewBehZeit={setNewBehZeit}
-          expandedBeh={expandedBeh} setExpandedBeh={setExpandedBeh}
-          onCreateBehandlung={onCreateBehandlung} onDeleteBehandlung={onDeleteBehandlung}
-          onStartConsent={onStartConsent} onNewHV={onNewHV} onCreateInvoice={onCreateInvoice}
-          setCenterView={setCenterView}
-          onViewConsent={onViewConsent} onViewHV={onViewHV} onView={onView}
-          setViewingTreatment={setViewingTreatment} setConfirmDeleteBeh={setConfirmDeleteBeh}
-          hasConsentRisks={hasConsentRisks} getDocLabel={getDocLabel} getDocStatus={getDocStatus} handleDocClick={handleDocClick}
-        />
+        {/* ═══════════════════ CENTER: Behandlungen ═══════════════════ */}
+        <div className="w-full lg:flex-1 min-w-0">
+          {/* Data Highlights */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-4 lg:mb-5">
+            <div className="grid grid-cols-3 gap-4 px-5 py-4">
+              <div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Erstellt am</div>
+                <div className="text-xs text-gray-700 font-medium mt-1">{fmtDate(patient._raw?.created_at?.slice(0, 10))}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Behandlungen</div>
+                <div className="text-xs text-gray-700 font-medium mt-1">{patientBeh.length}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Letzte Aktivit&auml;t</div>
+                <div className="text-xs text-gray-700 font-medium mt-1">{lastActivity ? fmtDate(lastActivity._createdAt?.slice(0, 10)) : "--"}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Behandlungen or Detail view */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto">
+            {centerView === "timeline" && (
+              <PatientBehandlungenSidebar
+                patientBeh={patientBeh} matchingInvoices={matchingInvoices} patientDbId={patientDbId} patient={patient}
+                newBehandlungOpen={newBehandlungOpen} setNewBehandlungOpen={setNewBehandlungOpen}
+                newBehDatum={newBehDatum} setNewBehDatum={setNewBehDatum}
+                newBehZeit={newBehZeit} setNewBehZeit={setNewBehZeit}
+                expandedBeh={expandedBeh} setExpandedBeh={setExpandedBeh}
+                onCreateBehandlung={onCreateBehandlung} onDeleteBehandlung={onDeleteBehandlung}
+                onStartConsent={onStartConsent} onNewHV={onNewHV} onCreateInvoice={onCreateInvoice}
+                setCenterView={setCenterView}
+                onViewConsent={onViewConsent} onViewHV={onViewHV} onView={onView}
+                setViewingTreatment={setViewingTreatment} setConfirmDeleteBeh={setConfirmDeleteBeh}
+                hasConsentRisks={hasConsentRisks} getDocLabel={getDocLabel} getDocStatus={getDocStatus} handleDocClick={handleDocClick}
+              />
+            )}
+
+            {centerView === "behandlung_detail" && viewingTreatment && (
+              <BehandlungDetailPanel
+                viewingTreatment={viewingTreatment} setViewingTreatment={setViewingTreatment}
+                setCenterView={setCenterView}
+                patient={patient} rawData={rawData} invoices={invoices}
+                kleinunternehmer={kleinunternehmer} practice={practice}
+                onUpdateInvoice={onUpdateInvoice} onQuickInvoice={onQuickInvoice}
+                setConfirmDeleteTreatment={setConfirmDeleteTreatment}
+                downloadTreatmentDoc={downloadTreatmentDoc}
+                pendingQuickInvoice={pendingQuickInvoice} setPendingQuickInvoice={setPendingQuickInvoice}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* ═══════════════════ RIGHT SIDEBAR: Historie ═══════════════════ */}
+        <div className="w-full lg:w-80 xl:w-96 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex-shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+          <PatientTimeline
+            patient={patient} patientDbId={patientDbId}
+            matchingInvoices={matchingInvoices} patientBeh={patientBeh}
+            activityLog={activityLog} lastActivity={lastActivity}
+            onViewConsent={onViewConsent} onViewHV={onViewHV} onView={onView}
+            setViewingTreatment={setViewingTreatment} setCenterView={setCenterView}
+          />
+        </div>
       </div>
 
       {/* ═══════════════════ MODALS ═══════════════════ */}

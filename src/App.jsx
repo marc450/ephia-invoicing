@@ -2301,7 +2301,7 @@ export default function EphiaInvoice() {
         />
       )}
 
-      {pathname !== "/agb" && pathname !== "/impressum" && pathname !== "/datenschutz" && !isConsentPage && <div className={`mx-auto px-3 sm:px-6 py-3 sm:py-5 ${isCreatePage ? "max-w-7xl" : isListPage || pathname === "/patients" || pathname === "/" || isPatientDetail ? "max-w-6xl" : isPreviewPage ? "max-w-5xl" : "max-w-3xl"}`}>
+      {pathname !== "/agb" && pathname !== "/impressum" && pathname !== "/datenschutz" && !isConsentPage && <div className={`mx-auto py-3 sm:py-5 ${isPatientDetail ? "max-w-full px-4 sm:px-6 lg:px-8" : isCreatePage ? "max-w-7xl px-3 sm:px-6" : isListPage || pathname === "/patients" || pathname === "/" ? "max-w-6xl px-3 sm:px-6" : isPreviewPage ? "max-w-5xl px-3 sm:px-6" : "max-w-3xl px-3 sm:px-6"}`}>
         {/* ═══ CREATE PAGE ═══ */}
         {isCreatePage && (
           <>

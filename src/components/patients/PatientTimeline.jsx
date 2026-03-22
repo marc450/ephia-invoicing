@@ -95,25 +95,9 @@ export default function PatientTimeline({
 
   return (
     <>
-      {/* Data Highlights bar */}
-      <div className="grid grid-cols-3 gap-4 px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-        <div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Erstellt am</div>
-          <div className="text-xs text-gray-700 font-medium mt-0.5">{fmtDate(patient._raw?.created_at?.slice(0, 10))}</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Behandlungen</div>
-          <div className="text-xs text-gray-700 font-medium mt-0.5">{patientBeh.length}</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Letzte Aktivit&auml;t</div>
-          <div className="text-xs text-gray-700 font-medium mt-0.5">{lastActivity ? fmtDate(lastActivity._createdAt?.slice(0, 10)) : "--"}</div>
-        </div>
-      </div>
-
-      {/* Timeline section */}
+      {/* Timeline header */}
       <div className="px-4 py-3 border-b border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Historie</h3>
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Historie</h3>
         <div className="flex gap-2 items-center">
           <input type="text" placeholder="Aktivitäten durchsuchen..." className="flex-1 border border-gray-200 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineSearch} onChange={e => setTimelineSearch(e.target.value)} />
           <select className="border border-gray-200 rounded px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineFilter} onChange={e => setTimelineFilter(e.target.value)}>

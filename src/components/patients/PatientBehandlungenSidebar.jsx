@@ -12,7 +12,7 @@ export default function PatientBehandlungenSidebar({
   hasConsentRisks, getDocLabel, getDocStatus, handleDocClick,
 }) {
   return (
-    <div className="lg:w-72 xl:w-80 border-t lg:border-t-0 lg:border-l border-gray-100 lg:sticky lg:top-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+    <div className="flex-1 min-w-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Behandlungen ({patientBeh.length})</h3>

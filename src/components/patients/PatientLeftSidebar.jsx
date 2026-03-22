@@ -79,7 +79,7 @@ export default function PatientLeftSidebar({
   const cancel = () => setEditingSection(null);
 
   return (
-    <div className="lg:w-64 xl:w-72 border-b lg:border-b-0 lg:border-r border-gray-100 lg:sticky lg:top-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+    <div className="lg:w-64 xl:w-72 lg:sticky lg:top-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
       {/* Patient photo + name */}
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3">
