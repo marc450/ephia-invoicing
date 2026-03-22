@@ -21,15 +21,6 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
   const [confirmDeleteBeh, setConfirmDeleteBeh] = useState(null);
   const [editingTreatmentInv, setEditingTreatmentInv] = useState(null);
   const [viewingTreatment, setViewingTreatment] = useState(null);
-  const [editData, setEditData] = useState({
-    vorname: rawData.vorname || patient.vorname || "",
-    nachname: rawData.nachname || patient.nachname || "",
-    email: rawData.email || patient.email || "",
-    phone: rawData.phone || "",
-    address1: rawData.address1 || "",
-    address2: rawData.address2 || "",
-    country: rawData.country || "Deutschland",
-  });
 
   // Three-column layout: center view state
   const [centerView, setCenterView] = useState("timeline");
@@ -48,8 +39,6 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
   const [newTreatmentAmount, setNewTreatmentAmount] = useState("");
   const [newTreatmentFacePhoto, setNewTreatmentFacePhoto] = useState("");
 
-  // Inline patient editing state
-  const [patientEditField, setPatientEditField] = useState(null);
 
   // Quick invoice pending (bridges behandlungen_add -> behandlung_detail)
   const [pendingQuickInvoice, setPendingQuickInvoice] = useState(false);
@@ -172,13 +161,6 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
     }
   };
 
-  // ── Patient edit helpers ──
-  const isEditing = patientEditField === "all";
-  const startEdit = () => { setPatientEditField("all"); setEditData({ vorname: patient.vorname || rawData.vorname || "", nachname: patient.nachname || rawData.nachname || "", email: rawData.email || patient.email || "", phone: rawData.phone || "", address1: rawData.address1 || "", address2: rawData.address2 || "", country: rawData.country || "Deutschland" }); };
-  const saveAll = () => { if (onUpdatePatient) onUpdatePatient(editData); setPatientEditField(null); };
-  const cancelAll = () => setPatientEditField(null);
-  const inputCls = "border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400";
-
   // Profile photo upload handler
   const handleProfilePhotoUpload = (e) => {
     const file = e.target.files?.[0];
@@ -206,11 +188,11 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
         <PatientLeftSidebar
           patient={patient} rawData={rawData} email={email}
           latestFacePhoto={latestFacePhoto} profilePhotoInputRef={profilePhotoInputRef} handleProfilePhotoUpload={handleProfilePhotoUpload}
-          isEditing={isEditing} startEdit={startEdit} saveAll={saveAll} cancelAll={cancelAll} editData={editData} setEditData={setEditData} inputCls={inputCls}
           adressdatenOpen={adressdatenOpen} setAdressdatenOpen={setAdressdatenOpen}
           medizinischeOpen={medizinischeOpen} setMedizinischeOpen={setMedizinischeOpen}
           anamneseOpen={anamneseOpen} setAnamneseOpen={setAnamneseOpen}
           anamnese={anamnese}
+          onUpdatePatient={onUpdatePatient}
         />
 
         {/* ═══════════════════ CENTER CONTENT ═══════════════════ */}
