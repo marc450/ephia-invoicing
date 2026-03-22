@@ -1517,8 +1517,8 @@ export default function EphiaInvoice() {
         const decryptedPatients = [];
         for (const rec of patientRecords) {
           let pd = rec.data;
-          if (rec.encryption_version === 1 && rec.iv && currentMEK) {
-            try { pd = await decryptData(rec.data, rec.iv, currentMEK); } catch (e) { continue; }
+          if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof pd === "string") {
+            try { pd = await decryptData(pd, rec.iv, currentMEK); } catch (e) { continue; }
           }
           decryptedPatients.push({ ...rec, data: pd });
         }
@@ -3070,8 +3070,8 @@ export default function EphiaInvoice() {
                         const decryptedPatients = [];
                         for (const rec of patientRecords) {
                           let pd = rec.data;
-                          if (rec.encryption_version === 1 && rec.iv && currentMEK) {
-                            try { pd = await decryptData(rec.data, rec.iv, currentMEK); } catch (e) { continue; }
+                          if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof pd === "string") {
+                            try { pd = await decryptData(pd, rec.iv, currentMEK); } catch (e) { continue; }
                           }
                           decryptedPatients.push({ ...rec, data: pd });
                         }
@@ -3201,8 +3201,8 @@ export default function EphiaInvoice() {
                         const decryptedPatients = [];
                         for (const rec of patientRecords) {
                           let pd = rec.data;
-                          if (rec.encryption_version === 1 && rec.iv && currentMEK) {
-                            try { pd = await decryptData(rec.data, rec.iv, currentMEK); } catch (e) { continue; }
+                          if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof pd === "string") {
+                            try { pd = await decryptData(pd, rec.iv, currentMEK); } catch (e) { continue; }
                           }
                           decryptedPatients.push({ ...rec, data: pd });
                         }
