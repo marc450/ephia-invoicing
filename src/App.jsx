@@ -10,6 +10,7 @@ import { supabaseFetchDocuments, supabaseCreateDocument, supabaseUpdateDocument,
 import { supabaseFetchBehandlungen, supabaseCreateBehandlung, supabaseUpdateBehandlung, supabaseDeleteBehandlung } from "./lib/supabase/behandlungen";
 import { migrateInvoicesToDocuments } from "./lib/migration";
 import { supabaseFetchPatients, supabaseUpsertPatient, supabaseDeletePatient } from "./lib/supabase/patients";
+import { supabaseFetchActivityLog, supabaseCreateActivityLog } from "./lib/supabase/activityLog";
 import { trackEvent } from "./lib/analytics";
 import {
   MEK_SESSION_KEY, bufToBase64, base64ToBuf, derivePDK,
@@ -152,6 +153,7 @@ export default function EphiaInvoice() {
   const [consentWarningPatient, setConsentWarningPatient] = useState(null); // patient pending consent warning confirmation
   const [invoices, setInvoices] = useState([]);
   const [behandlungen, setBehandlungen] = useState([]);
+  const [activityLog, setActivityLog] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showAddPatient, setShowAddPatient] = useState(false);
@@ -420,6 +422,20 @@ export default function EphiaInvoice() {
           loadedBeh.push({ ...behData, _id: rec.id, _patientId: rec.patient_id, _createdAt: rec.created_at });
         }
         setBehandlungen(loadedBeh);
+
+        // Load activity log
+        try {
+          const logRecords = await supabaseFetchActivityLog(accessToken, userId);
+          const loadedLog = [];
+          for (const rec of logRecords) {
+            let logData = rec.data;
+            if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof logData === "string") {
+              try { logData = await decryptData(logData, rec.iv, currentMEK); } catch (e) { continue; }
+            }
+            loadedLog.push({ ...logData, _id: rec.id, _patientId: rec.patient_id, entityType: rec.entity_type, entityId: rec.entity_id, actionType: rec.action_type, _createdAt: rec.created_at });
+          }
+          setActivityLog(loadedLog);
+        } catch (e) { console.error("Failed to load activity log:", e); }
       } else {
         // LEGACY PATH: Load from invoices table
         const invoiceRecords = await supabaseFetchInvoices(accessToken, userId);
@@ -781,6 +797,7 @@ export default function EphiaInvoice() {
     setUser(null);
     setInvoices([]);
     setBehandlungen([]);
+    setActivityLog([]);
     setPatients([]);
     setPractice(DEFAULT_PRACTICE);
     setDataLoaded(false);
@@ -933,6 +950,22 @@ export default function EphiaInvoice() {
     }
   };
 
+  // ─── Activity log helper ───
+  const logActivity = async (patientId, entityType, entityId, actionType, description, metadata = {}) => {
+    if (!session || !currentMEK) return;
+    try {
+      const logData = { description, metadata };
+      const enc = await encryptData(logData, currentMEK);
+      const created = await supabaseCreateActivityLog(
+        session.access_token, user.id, patientId,
+        entityType, entityId, actionType,
+        enc.ciphertext, enc.iv, 2
+      );
+      const newEntry = { ...logData, _id: created.id, _patientId: patientId, entityType, entityId, actionType, _createdAt: created.created_at };
+      setActivityLog(prev => [newEntry, ...prev]);
+    } catch (e) { console.error("Activity log error:", e); }
+  };
+
   // ─── Document CRUD adapters (dual-path: invoices vs documents table) ───
   const saveDocAdapter = async (entry, docType, patientId, behandlungId) => {
     let serverData = entry, serverIv = null, serverEncVer = null;
@@ -1007,12 +1040,14 @@ export default function EphiaInvoice() {
           // Update existing
           await updateDocAdapter(amendingEntry._supabaseId, entry);
           setInvoices(invoices.map((inv) => (inv.id === amendingId ? { ...entry, _supabaseId: amendingEntry._supabaseId, _docType: genDocType, _behandlungId: genBehandlungId } : inv)));
+          logActivity(genPatientId, genDocType === "hv" ? "hv" : "rechnung", amendingEntry._supabaseId, "updated", `${genDocType === "hv" ? "Honorarvereinbarung" : "Rechnung"} ${entry.invoiceMeta?.nummer || ""} aktualisiert`);
         } else {
           // Create new
           const created = await saveDocAdapter(entry, genDocType, genPatientId, genBehandlungId);
           const newEntry = { ...entry, _supabaseId: created.id, _docType: genDocType, _behandlungId: genBehandlungId, _createdAt: created.created_at || new Date().toISOString() };
           setInvoices([newEntry, ...invoices]);
           setViewingInvoice(newEntry);
+          logActivity(genPatientId, genDocType === "hv" ? "hv" : "rechnung", created.id, "created", `${genDocType === "hv" ? "Honorarvereinbarung" : "Rechnung"} ${entry.invoiceMeta?.nummer || ""} erstellt`);
         }
 
         // Upsert patient (encrypted: manual find-then-insert/update)
@@ -1264,6 +1299,8 @@ export default function EphiaInvoice() {
     }
 
     trackEvent("document_deleted", { type: toDelete?._hvOnly ? "hv" : toDelete?._standalone ? "treatment_doc" : "invoice" }, session?.access_token);
+    const delDocType = toDelete?._docType || (toDelete?._consentForm ? "aufklaerung" : toDelete?._hvOnly ? "hv" : toDelete?._standalone ? "behandlungsdoku" : "rechnung");
+    logActivity(toDelete?._patientDbId, delDocType, toDelete?._supabaseId, "deleted", `${delDocType === "aufklaerung" ? "Aufklärungsbogen" : delDocType === "hv" ? "Honorarvereinbarung" : delDocType === "behandlungsdoku" ? "Behandlungsdoku" : "Rechnung"} gelöscht`);
     setInvoices(invoices.filter((inv) => inv.id !== confirmDeleteId));
     setConfirmDeleteId(null);
     if (viewingInvoice && viewingInvoice.id === confirmDeleteId) {
@@ -1398,6 +1435,7 @@ export default function EphiaInvoice() {
     const created = await supabaseCreateBehandlung(session.access_token, user.id, patientId, serverData, serverIv, serverEncVer);
     const newBeh = { ...behData, _id: created.id, _patientId: patientId, _createdAt: created.created_at };
     setBehandlungen(prev => [newBeh, ...prev]);
+    logActivity(patientId, "behandlung", created.id, "created", `Behandlung am ${behData.datum || ""} erstellt`);
     return created.id;
   };
 
@@ -1408,14 +1446,17 @@ export default function EphiaInvoice() {
       serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
     }
     await supabaseUpdateBehandlung(session.access_token, behId, serverData, serverIv, serverEncVer);
+    const beh = behandlungen.find(b => b._id === behId);
     setBehandlungen(prev => prev.map(b => b._id === behId ? { ...behData, _id: behId, _patientId: b._patientId, _createdAt: b._createdAt } : b));
+    logActivity(beh?._patientId, "behandlung", behId, "updated", `Behandlung aktualisiert`);
   };
 
   const handleDeleteBehandlung = async (behId) => {
+    const beh = behandlungen.find(b => b._id === behId);
     await supabaseDeleteBehandlung(session.access_token, behId);
     setBehandlungen(prev => prev.filter(b => b._id !== behId));
-    // Documents with ON DELETE SET NULL keep their data but lose the Behandlung link
     setInvoices(prev => prev.map(inv => inv._behandlungId === behId ? { ...inv, _behandlungId: null } : inv));
+    logActivity(beh?._patientId, "behandlung", behId, "deleted", `Behandlung gelöscht`);
   };
 
   const handleLinkDocToBehandlung = async (docId, behandlungId) => {
@@ -1490,6 +1531,7 @@ export default function EphiaInvoice() {
         entry._supabaseId = created.id;
         entry._docType = "aufklaerung";
         entry._createdAt = created.created_at || new Date().toISOString();
+        logActivity(patientDbId, "aufklaerung", created.id, "created", "Aufklärungsbogen erstellt");
       } catch (e) { console.error("Failed to save consent form:", e); }
     }
     // Auto-sync demographics + anamnese (Ja answers) from consent form to patient profile
@@ -2933,6 +2975,7 @@ export default function EphiaInvoice() {
               if (session && updated._supabaseId) {
                 try {
                   await e2eeFetchModifySave(session.access_token, updated._supabaseId, { paymentStatus: updated.paymentStatus });
+                  logActivity(updated._patientDbId, "rechnung", updated._supabaseId, "updated", `Zahlungsstatus: ${updated.paymentStatus === "bezahlt" ? "Bezahlt" : "Ausstehend"}`);
                 } catch (e) { console.error("Failed to persist status:", e); }
               }
             }}
@@ -3260,6 +3303,8 @@ export default function EphiaInvoice() {
             docsMigrated={docsMigrated.current}
             kleinunternehmer={practice.kleinunternehmer}
             practice={practice}
+            activityLog={activityLog}
+            onLogActivity={logActivity}
             onCreateBehandlung={handleCreateBehandlung}
             onUpdateBehandlung={handleUpdateBehandlung}
             onDeleteBehandlung={handleDeleteBehandlung}
@@ -3302,15 +3347,14 @@ export default function EphiaInvoice() {
             onDelete={(id) => setConfirmDeleteId(id)}
             onUpdateInvoice={async (updated, isNew) => {
               if (updated._deleted) {
-                // Delete from Supabase if persisted
                 if (session && updated._supabaseId) {
                   try { await deleteDocAdapter(updated._supabaseId); }
                   catch (e) { console.error("Failed to delete treatment:", e); }
                 }
+                logActivity(updated._patientDbId, "behandlungsdoku", updated._supabaseId, "deleted", "Behandlungsdoku gelöscht");
                 setInvoices(invoices.filter(inv => inv.id !== updated.id));
               }
               else if (isNew) {
-                // Persist new standalone treatment
                 if (session) {
                   try {
                     const tdPatientId = updated._patientDbId || null;
@@ -3319,6 +3363,7 @@ export default function EphiaInvoice() {
                     updated._supabaseId = created.id;
                     updated._docType = "behandlungsdoku";
                     updated._createdAt = created.created_at || new Date().toISOString();
+                    logActivity(tdPatientId, "behandlungsdoku", created.id, "created", "Behandlungsdoku erstellt");
                   } catch (e) { console.error("Failed to persist standalone treatment:", e); }
                 }
                 setInvoices([updated, ...invoices]);
@@ -3328,6 +3373,7 @@ export default function EphiaInvoice() {
                 if (session && updated._supabaseId) {
                   try {
                     await updateDocAdapter(updated._supabaseId, updated);
+                    logActivity(updated._patientDbId, updated._docType || "behandlungsdoku", updated._supabaseId, "updated", "Dokument aktualisiert");
                   } catch (e) { console.error("Failed to persist treatment update:", e); }
                 }
               }
@@ -3374,6 +3420,7 @@ export default function EphiaInvoice() {
                   entry._docType = "rechnung";
                   entry._behandlungId = qiBehandlungId;
                   entry._createdAt = created.created_at || new Date().toISOString();
+                  logActivity(qiPatientId, "rechnung", created.id, "created", `Schnellrechnung ${nummer} erstellt`);
                 }
 
                 setInvoices([entry, ...invoices]);
@@ -3421,6 +3468,7 @@ export default function EphiaInvoice() {
                   const updated = decryptedPatients.find(p => p.id === raw.id);
                   const ud = (typeof updated?.data === "object" && updated?.data) || {};
                   if (updated) setSelectedPatient({ vorname: ud.vorname || "", nachname: ud.nachname || "", email: ud.email || "", _raw: updated });
+                  logActivity(raw.id, "patient", raw.id, "updated", "Patient:innendaten aktualisiert");
                 }
               } catch (e) { console.error("Error updating patient:", e); }
             }}
