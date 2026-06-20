@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import InfoTooltip from "../ui/InfoTooltip";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../../lib/supabase/client";
-import { computePatientHash, getPatientIdentifier, encryptData } from "../../lib/crypto";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "../../lib/supabase/client";
+import { computePatientHash, getPatientIdentifier, encryptData, derivePDK, generateSalt, wrapMEK } from "../../lib/crypto";
 // ═══════════════════ Settings Panel ═══════════════════
 
 export default function SettingsPanel({ practice, setPractice, show, setShow, onSave, isFirstTime, session, currentMEK, userId, patients, invoices, setPatients, setInvoices }) {
@@ -12,17 +12,6 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
   const [pwMsg, setPwMsg] = React.useState(null);
 
   const handleChangePassword = async () => {
-    // ⚠️ TEMPORARILY DISABLED — do not re-enable without a rebuild + test.
-    // The MEK re-wrap below is broken: it writes mek_wrapped/encryptData but
-    // unlockMEK reads encrypted_mek/unwrapMEK, and filters profiles by user_id
-    // when the table is keyed by id. As written it would change the auth
-    // password and then FAIL to re-wrap the MEK, locking the user out of
-    // decryption with their new password. Must mirror initializeEncryption/
-    // unlockMEK (wrapMEK + encrypted_mek/mek_iv/mek_salt, profiles?id=eq...)
-    // and be tested before going live.
-    setPwMsg({ type: "error", text: "Passwortänderung ist derzeit deaktiviert. Bitte wende Dich an den Support." });
-    return;
-    /* eslint-disable no-unreachable */
     if (!pwNew || pwNew !== pwConfirm) return;
     if (pwNew.length < 6) { setPwMsg({ type: "error", text: "Neues Passwort muss mindestens 6 Zeichen lang sein." }); return; }
     setPwLoading(true);
@@ -36,6 +25,20 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
       });
       if (!verifyRes.ok) { setPwMsg({ type: "error", text: "Aktuelles Passwort ist falsch." }); setPwLoading(false); return; }
 
+      // E2EE: re-wrap the MEK under the NEW password BEFORE touching the auth
+      // password, so we can never end up with a changed login password but a
+      // MEK still wrapped under the old one. The MEK itself does not change —
+      // only the password-derived key that wraps it. This mirrors
+      // initializeEncryption/unlockMEK exactly (wrapMEK + the
+      // encrypted_mek/mek_iv/mek_salt/mek_params fields, profiles keyed by id).
+      let rewrap = null;
+      if (currentMEK && userId) {
+        const newSalt = generateSalt();
+        const newPdk = await derivePDK(pwNew, newSalt);
+        const { encrypted: encrypted_mek, iv: mek_iv } = await wrapMEK(currentMEK, newPdk);
+        rewrap = { encrypted_mek, mek_iv, mek_salt: newSalt, mek_params: { iterations: 100000, hash: "SHA-256" } };
+      }
+
       // Update password via Supabase Auth API
       const updateRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
         method: "PUT",
@@ -44,22 +47,19 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
       });
       if (!updateRes.ok) { const err = await updateRes.json(); throw new Error(err.message || "Fehler beim Ändern des Passworts"); }
 
-      // Re-wrap MEK with new password if E2EE is active
-      if (currentMEK && userId) {
-        try {
-          const newSalt = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
-          const newPdk = await derivePDK(pwNew, newSalt);
-          const { ciphertext: newWrapped, iv: newIv } = await encryptData(
-            btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("raw", currentMEK)))),
-            newPdk
-          );
-          await fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Prefer": "return=representation" },
-            body: JSON.stringify({ mek_wrapped: newWrapped, mek_iv: newIv, mek_salt: newSalt }),
-          });
-        } catch (e) {
-          console.error("Failed to re-wrap MEK with new password:", e);
+      // Persist the re-wrapped MEK. If this fails after the password change,
+      // surface a hard error: the user can still recover via their recovery
+      // key on next login, but we must not silently claim success.
+      if (rewrap) {
+        const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${pgv(userId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Prefer": "return=representation" },
+          body: JSON.stringify(rewrap),
+        });
+        if (!patchRes.ok) {
+          const err = await patchRes.text();
+          console.error("Failed to persist re-wrapped MEK:", err);
+          throw new Error("Passwort geändert, aber die Verschlüsselung konnte nicht aktualisiert werden. Bitte melde Dich neu an — Deine Daten werden über den Wiederherstellungsschlüssel automatisch entsperrt.");
         }
       }
 
@@ -117,9 +117,19 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
   const importFileRef = React.useRef(null);
 
   const handleImportData = async (e) => {
+    if (e?.target) e.target.value = "";
+    // ⚠️ DISABLED pending a proper rebuild. This restore deletes ALL existing
+    // data and then recreates invoices in the legacy `invoices` table using the
+    // old encryption envelope — but current (migrated) users load from the
+    // `documents` table, so a restore would wipe live data and write rows the
+    // app can't display. It must be re-architected around the documents schema
+    // with a matching export format, and tested on a throwaway account, before
+    // being re-enabled. The Export (backup creation) path is unaffected.
+    alert("Die Wiederherstellung aus einem Backup ist derzeit deaktiviert. Das Erstellen eines Backups (Export) funktioniert weiterhin.");
+    return;
+    /* eslint-disable no-unreachable */
     const file = e.target.files?.[0];
     if (!file) return;
-    e.target.value = "";
     setImportLoading(true);
     try {
       const text = await file.text();
@@ -390,11 +400,10 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
                 )}
                 <button
                   className="mt-3 px-4 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  disabled
-                  title="Passwortänderung ist derzeit deaktiviert"
+                  disabled={pwLoading || !pwCurrent || !pwNew || pwNew !== pwConfirm}
                   onClick={handleChangePassword}
                 >
-                  Passwort ändern (derzeit deaktiviert)
+                  {pwLoading ? "Wird geändert..." : "Passwort ändern"}
                 </button>
               </div>
             )}
@@ -419,15 +428,16 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
                 </div>
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                   <p className="text-xs font-medium text-gray-600 mb-1">Import</p>
-                  <p className="text-[10px] text-gray-400 mb-3">Daten aus Backup wiederherstellen. Bestehende Daten werden ersetzt.</p>
+                  <p className="text-[10px] text-gray-400 mb-3">Wiederherstellung ist derzeit deaktiviert (wird überarbeitet). Backups erstellen ist weiterhin möglich.</p>
                   <input ref={importFileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportData} />
                   <button
                     className="px-3 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
-                    disabled={importLoading}
+                    disabled
+                    title="Wiederherstellung ist derzeit deaktiviert"
                     onClick={() => importFileRef.current?.click()}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m4-8l-4-4m0 0l-4 4m4-4v12" /></svg>
-                    {importLoading ? "Importiert..." : "Backup wiederherstellen"}
+                    Backup wiederherstellen (deaktiviert)
                   </button>
                 </div>
               </div>
