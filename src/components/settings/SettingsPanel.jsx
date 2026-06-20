@@ -12,6 +12,17 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
   const [pwMsg, setPwMsg] = React.useState(null);
 
   const handleChangePassword = async () => {
+    // ⚠️ TEMPORARILY DISABLED — do not re-enable without a rebuild + test.
+    // The MEK re-wrap below is broken: it writes mek_wrapped/encryptData but
+    // unlockMEK reads encrypted_mek/unwrapMEK, and filters profiles by user_id
+    // when the table is keyed by id. As written it would change the auth
+    // password and then FAIL to re-wrap the MEK, locking the user out of
+    // decryption with their new password. Must mirror initializeEncryption/
+    // unlockMEK (wrapMEK + encrypted_mek/mek_iv/mek_salt, profiles?id=eq...)
+    // and be tested before going live.
+    setPwMsg({ type: "error", text: "Passwortänderung ist derzeit deaktiviert. Bitte wende Dich an den Support." });
+    return;
+    /* eslint-disable no-unreachable */
     if (!pwNew || pwNew !== pwConfirm) return;
     if (pwNew.length < 6) { setPwMsg({ type: "error", text: "Neues Passwort muss mindestens 6 Zeichen lang sein." }); return; }
     setPwLoading(true);
@@ -379,10 +390,11 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
                 )}
                 <button
                   className="mt-3 px-4 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  disabled={pwLoading || !pwCurrent || !pwNew || pwNew !== pwConfirm}
+                  disabled
+                  title="Passwortänderung ist derzeit deaktiviert"
                   onClick={handleChangePassword}
                 >
-                  {pwLoading ? "Wird geändert..." : "Passwort ändern"}
+                  Passwort ändern (derzeit deaktiviert)
                 </button>
               </div>
             )}
