@@ -4,7 +4,7 @@
  * `documents` + `behandlungen` tables. Idempotent and safe to interrupt.
  */
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase/client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "./supabase/client";
 import { supabaseFetchInvoices } from "./supabase/invoices";
 import { supabaseFetchDocuments, supabaseCreateDocument } from "./supabase/documents";
 import { supabaseCreateBehandlung } from "./supabase/behandlungen";
@@ -177,7 +177,7 @@ async function createMigratedDocument(accessToken, userId, mek, patientId, behan
 }
 
 async function setMigrationVersion(accessToken, userId, version) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${pgv(userId)}`, {
     method: "PATCH",
     headers: {
       ...headers(accessToken),

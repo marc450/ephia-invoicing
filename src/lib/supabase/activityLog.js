@@ -1,8 +1,8 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "./client";
 
 export async function supabaseFetchActivityLog(accessToken, userId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/activity_log?user_id=eq.${userId}&order=created_at.desc`,
+    `${SUPABASE_URL}/rest/v1/activity_log?user_id=eq.${pgv(userId)}&order=created_at.desc`,
     {
       method: "GET",
       headers: {

@@ -1,8 +1,8 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "./client";
 
 export async function supabaseDeletePatient(accessToken, patientId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/patients?id=eq.${patientId}`,
+    `${SUPABASE_URL}/rest/v1/patients?id=eq.${pgv(patientId)}`,
     {
       method: "DELETE",
       headers: {
@@ -17,7 +17,7 @@ export async function supabaseDeletePatient(accessToken, patientId) {
 
 export async function supabaseFetchPatients(accessToken, userId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/patients?user_id=eq.${userId}`,
+    `${SUPABASE_URL}/rest/v1/patients?user_id=eq.${pgv(userId)}`,
     {
       method: "GET",
       headers: {

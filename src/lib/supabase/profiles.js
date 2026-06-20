@@ -1,8 +1,8 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "./client";
 
 export async function supabaseFetchProfiles(accessToken, userId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`,
+    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${pgv(userId)}`,
     {
       method: "GET",
       headers: {
@@ -19,7 +19,7 @@ export async function supabaseFetchProfiles(accessToken, userId) {
 
 export async function supabaseUpdateProfile(accessToken, userId, practiceData) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`,
+    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${pgv(userId)}`,
     {
       method: "PATCH",
       headers: {

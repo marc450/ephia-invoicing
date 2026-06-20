@@ -1,8 +1,8 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "./client";
 
 export async function supabaseFetchDocuments(accessToken, userId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/documents?user_id=eq.${userId}`,
+    `${SUPABASE_URL}/rest/v1/documents?user_id=eq.${pgv(userId)}`,
     {
       method: "GET",
       headers: {
@@ -47,7 +47,7 @@ export async function supabaseUpdateDocument(accessToken, documentId, docData, i
   if (iv != null) payload.iv = iv;
   if (encryptionVersion != null) payload.encryption_version = encryptionVersion;
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/documents?id=eq.${documentId}`,
+    `${SUPABASE_URL}/rest/v1/documents?id=eq.${pgv(documentId)}`,
     {
       method: "PATCH",
       headers: {
@@ -66,7 +66,7 @@ export async function supabaseUpdateDocument(accessToken, documentId, docData, i
 
 export async function supabaseDeleteDocument(accessToken, documentId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/documents?id=eq.${documentId}`,
+    `${SUPABASE_URL}/rest/v1/documents?id=eq.${pgv(documentId)}`,
     {
       method: "DELETE",
       headers: {
@@ -81,7 +81,7 @@ export async function supabaseDeleteDocument(accessToken, documentId) {
 
 export async function supabaseUpdateDocumentBehandlung(accessToken, documentId, behandlungId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/documents?id=eq.${documentId}`,
+    `${SUPABASE_URL}/rest/v1/documents?id=eq.${pgv(documentId)}`,
     {
       method: "PATCH",
       headers: {

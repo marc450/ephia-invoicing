@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./lib/supabase/client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "./lib/supabase/client";
 import { supabaseSignIn, supabaseSignUp, supabaseSignOut, supabaseResetPassword, supabaseRefreshToken, supabaseGetUser } from "./lib/supabase/auth";
 import { supabaseFetchProfiles, supabaseUpdateProfile } from "./lib/supabase/profiles";
 import { supabaseFetchInvoices, supabaseCreateInvoice, supabaseUpdateInvoice, supabaseDeleteInvoice } from "./lib/supabase/invoices";
@@ -535,7 +535,7 @@ export default function EphiaInvoice() {
               // Persist repair to Supabase (E2EE: fetch, decrypt, modify, re-encrypt)
               if (inv._supabaseId && currentMEK) {
                 try {
-                  const fetchRes = await fetch(`${SUPABASE_URL}/rest/v1/invoices?id=eq.${inv._supabaseId}&select=data,iv,encryption_version`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` } });
+                  const fetchRes = await fetch(`${SUPABASE_URL}/rest/v1/invoices?id=eq.${pgv(inv._supabaseId)}&select=data,iv,encryption_version`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` } });
                   const rows = await fetchRes.json();
                   if (rows.length > 0) {
                     let stored = rows[0].data;
@@ -544,7 +544,7 @@ export default function EphiaInvoice() {
                     stored.patient = inv.patient;
                     const enc = await encryptData(stored, currentMEK);
                     const repairTable = docsMigrated.current ? "documents" : "invoices";
-                    await fetch(`${SUPABASE_URL}/rest/v1/${repairTable}?id=eq.${inv._supabaseId}`, { method: "PATCH", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" }, body: JSON.stringify({ data: enc.ciphertext, iv: enc.iv, encryption_version: 2 }) });
+                    await fetch(`${SUPABASE_URL}/rest/v1/${repairTable}?id=eq.${pgv(inv._supabaseId)}`, { method: "PATCH", headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" }, body: JSON.stringify({ data: enc.ciphertext, iv: enc.iv, encryption_version: 2 }) });
                   }
                 } catch (e) { console.error("Failed to repair invoice patient:", inv._supabaseId, e); }
               }
@@ -582,7 +582,7 @@ export default function EphiaInvoice() {
     const rkRaw = await crypto.subtle.exportKey("raw", rk);
     const recoveryKeyBase64 = bufToBase64(rkRaw);
     // Store all crypto params in profile
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${pgv(userId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" },
       body: JSON.stringify({
@@ -628,7 +628,7 @@ export default function EphiaInvoice() {
         const { encrypted: newRecWrapped, iv: newRecIv } = await wrapMEK(mek, newRk);
         const newRkRaw = await crypto.subtle.exportKey("raw", newRk);
         // Update profile with new wrapping
-        await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${profile.id}`, {
+        await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${pgv(profile.id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" },
           body: JSON.stringify({
@@ -687,7 +687,7 @@ export default function EphiaInvoice() {
       if (typeof invoiceData === "object") {
         try {
           const { ciphertext, iv } = await encryptData(invoiceData, currentMEK);
-          const res = await fetch(`${SUPABASE_URL}/rest/v1/invoices?id=eq.${rec.id}`, {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/invoices?id=eq.${pgv(rec.id)}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" },
             body: JSON.stringify({ data: ciphertext, iv, encryption_version: 2 }),
@@ -709,7 +709,7 @@ export default function EphiaInvoice() {
       const patientEmail = rec.email || rec.data?.email || "";
       const patientHash = await computePatientHash(patientEmail, currentMEK);
       const { ciphertext, iv } = await encryptData(rec.data, currentMEK);
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${rec.id}`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${pgv(rec.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" },
         body: JSON.stringify({ data: ciphertext, iv, patient_hash: patientHash, email: null, encryption_version: 1 }),
@@ -1083,13 +1083,13 @@ export default function EphiaInvoice() {
             const { ciphertext: ptCipher, iv: ptIv } = await encryptData(patient, currentMEK);
             // Check if patient with this hash already exists (E2EE records)
             const existingRes = await fetch(
-              `${SUPABASE_URL}/rest/v1/patients?user_id=eq.${user.id}&patient_hash=eq.${encodeURIComponent(patientHash)}`,
+              `${SUPABASE_URL}/rest/v1/patients?user_id=eq.${pgv(user.id)}&patient_hash=eq.${pgv(patientHash)}`,
               { headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` } }
             );
             const existing = await existingRes.json();
             if (existing.length > 0) {
               // Update existing patient (found by hash)
-              await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${existing[0].id}`, {
+              await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${pgv(existing[0].id)}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Prefer": "return=representation" },
                 body: JSON.stringify({ data: ptCipher, iv: ptIv, patient_hash: patientHash, encryption_version: 1 }),
@@ -1099,14 +1099,14 @@ export default function EphiaInvoice() {
               let legacy = [];
               if (patient.email && patient.email.trim()) {
                 const legacyRes = await fetch(
-                  `${SUPABASE_URL}/rest/v1/patients?user_id=eq.${user.id}&email=eq.${encodeURIComponent(patient.email.toLowerCase().trim())}`,
+                  `${SUPABASE_URL}/rest/v1/patients?user_id=eq.${pgv(user.id)}&email=eq.${pgv(patient.email.toLowerCase().trim())}`,
                   { headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` } }
                 );
                 legacy = await legacyRes.json();
               }
               if (legacy.length > 0) {
                 // Migrate pre-E2EE patient to encrypted
-                await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${legacy[0].id}`, {
+                await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${pgv(legacy[0].id)}`, {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Prefer": "return=representation" },
                   body: JSON.stringify({ data: ptCipher, iv: ptIv, patient_hash: patientHash, email: patientHash, encryption_version: 1 }),
@@ -1450,8 +1450,13 @@ export default function EphiaInvoice() {
   const printElement = (elementId, title) => {
     const el = document.getElementById(elementId);
     if (!el) return;
+    // Escape the title before injecting it into the new window's markup — it can
+    // contain user-controlled text (e.g. the invoice number) that would otherwise
+    // break out of the <title> tag. The body uses el.outerHTML, which is already
+    // HTML-escaped by React.
+    const safeTitle = String(title).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
     const win = window.open("", "_blank", "width=800,height=1100");
-    win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+    win.document.write(`<!DOCTYPE html><html><head><title>${safeTitle}</title>
       <style>body{margin:0;padding:0;} @page{size:A4;margin:0;} @media print{body{-webkit-print-color-adjust:exact;}}</style>
       </head><body>${el.outerHTML}</body></html>`);
     win.document.close();
@@ -1528,7 +1533,7 @@ export default function EphiaInvoice() {
   // E2EE helper: fetch document from Supabase, decrypt, apply modifier, re-encrypt, save
   const e2eeFetchModifySave = async (token, supabaseId, modifier) => {
     const table = docsMigrated.current ? "documents" : "invoices";
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${supabaseId}&select=data,iv,encryption_version`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${pgv(supabaseId)}&select=data,iv,encryption_version`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
     const rows = await res.json();
     if (rows.length === 0) return;
     let stored = rows[0].data;
@@ -1631,7 +1636,7 @@ export default function EphiaInvoice() {
         merged.anamnese = updatedAnamnese;
         const newPatientHash = await computePatientHash(getPatientIdentifier(merged), currentMEK);
         const { ciphertext, iv } = await encryptData(merged, currentMEK);
-        await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${raw.id}`, {
+        await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${pgv(raw.id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Prefer": "return=representation" },
           body: JSON.stringify({ data: ciphertext, iv, patient_hash: newPatientHash, encryption_version: 1 }),
@@ -2100,7 +2105,7 @@ export default function EphiaInvoice() {
               try {
                 const userId = updateData.id;
                 // Fetch profile to get recovery key
-                const profRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}&select=*`, {
+                const profRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${pgv(userId)}&select=*`, {
                   headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${recoveryAccessToken}` },
                 });
                 const profiles = await profRes.json();
@@ -2127,7 +2132,7 @@ export default function EphiaInvoice() {
                     const mekB64 = btoa(String.fromCharCode(...new Uint8Array(mekRawExport)));
                     const { ciphertext: newRecWrapped, iv: newRecIv } = await encryptData(mekB64, newRk);
 
-                    await fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`, {
+                    await fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${pgv(userId)}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${recoveryAccessToken}` },
                       body: JSON.stringify({
@@ -3598,7 +3603,7 @@ export default function EphiaInvoice() {
                 if (session && currentMEK && raw) {
                   const newPatientHash = await computePatientHash(getPatientIdentifier(updatedData), currentMEK);
                   const { ciphertext, iv } = await encryptData(updatedData, currentMEK);
-                  await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${raw.id}`, {
+                  await fetch(`${SUPABASE_URL}/rest/v1/patients?id=eq.${pgv(raw.id)}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}`, "Prefer": "return=representation" },
                     body: JSON.stringify({ data: ciphertext, iv, patient_hash: newPatientHash, encryption_version: 1 }),

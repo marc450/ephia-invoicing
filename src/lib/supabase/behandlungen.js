@@ -1,8 +1,8 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "./client";
 
 export async function supabaseFetchBehandlungen(accessToken, userId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/behandlungen?user_id=eq.${userId}`,
+    `${SUPABASE_URL}/rest/v1/behandlungen?user_id=eq.${pgv(userId)}`,
     {
       method: "GET",
       headers: {
@@ -44,7 +44,7 @@ export async function supabaseUpdateBehandlung(accessToken, behandlungId, behDat
   if (iv != null) payload.iv = iv;
   if (encryptionVersion != null) payload.encryption_version = encryptionVersion;
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/behandlungen?id=eq.${behandlungId}`,
+    `${SUPABASE_URL}/rest/v1/behandlungen?id=eq.${pgv(behandlungId)}`,
     {
       method: "PATCH",
       headers: {
@@ -63,7 +63,7 @@ export async function supabaseUpdateBehandlung(accessToken, behandlungId, behDat
 
 export async function supabaseDeleteBehandlung(accessToken, behandlungId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/behandlungen?id=eq.${behandlungId}`,
+    `${SUPABASE_URL}/rest/v1/behandlungen?id=eq.${pgv(behandlungId)}`,
     {
       method: "DELETE",
       headers: {

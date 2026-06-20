@@ -1,8 +1,8 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./client";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "./client";
 
 export async function supabaseFetchInvoices(accessToken, userId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/invoices?user_id=eq.${userId}`,
+    `${SUPABASE_URL}/rest/v1/invoices?user_id=eq.${pgv(userId)}`,
     {
       method: "GET",
       headers: {
@@ -44,7 +44,7 @@ export async function supabaseUpdateInvoice(accessToken, invoiceId, invoiceData,
   if (iv != null) payload.iv = iv;
   if (encryptionVersion != null) payload.encryption_version = encryptionVersion;
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/invoices?id=eq.${invoiceId}`,
+    `${SUPABASE_URL}/rest/v1/invoices?id=eq.${pgv(invoiceId)}`,
     {
       method: "PATCH",
       headers: {
@@ -63,7 +63,7 @@ export async function supabaseUpdateInvoice(accessToken, invoiceId, invoiceData,
 
 export async function supabaseDeleteInvoice(accessToken, invoiceId) {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/invoices?id=eq.${invoiceId}`,
+    `${SUPABASE_URL}/rest/v1/invoices?id=eq.${pgv(invoiceId)}`,
     {
       method: "DELETE",
       headers: {
