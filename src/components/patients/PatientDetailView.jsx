@@ -132,14 +132,14 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
       const sigs = inv.consentData?._signatures;
       const risk = hasConsentRisks(inv);
       if (inv.consentData?.refused) return { label: "Abgelehnt", color: "text-red-500", risk };
-      if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600", risk };
+      if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600", risk, done: true };
       if (sigs?.patient) return { label: "Ärzt:in fehlt", color: "text-amber-500", risk };
       return { label: "Entwurf", color: "text-gray-400", risk };
     }
     if (inv._hvOnly || inv._docType === "hv") {
       const sigs = inv._signatures;
-      if (inv._signedHvUpload) return { label: "Hochgeladen", color: "text-green-600" };
-      if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600" };
+      if (inv._signedHvUpload) return { label: "Hochgeladen", color: "text-green-600", done: true };
+      if (sigs?.patient && sigs?.doctor) return { label: "Unterschrieben", color: "text-green-600", done: true };
       if (sigs?.patient) return { label: "Ärzt:in fehlt", color: "text-amber-500" };
       return { label: "—", color: "text-gray-400" };
     }
