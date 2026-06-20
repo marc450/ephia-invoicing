@@ -2431,13 +2431,13 @@ export default function EphiaInvoice() {
             <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
               <div className="relative bg-white rounded-xl shadow-2xl p-6 sm:p-8" style={{ maxWidth: 480, width: "100%" }}>
                 <button
-                  className="absolute top-3 left-3 p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+                  className="absolute top-3 right-3 p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
                   onClick={() => { setShowIndicationModal(false); setAmendingId(null); setHvOnlyMode(false); if (patientCreateModal) { setPatientCreateModal(null); } else { navigate("/rechnungen"); } }}
                   aria-label="Abbrechen"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-                <h3 className="text-base font-semibold text-gray-800 mb-1 mt-6">Art der Abrechnung</h3>
+                <h3 className="text-base font-semibold text-gray-800 mb-1 pr-8">Art der Abrechnung</h3>
                 <p className="text-xs text-gray-400 mb-5">Wähle, ob die Rechnung für eine ästhetische oder therapeutische Indikation erstellt werden soll.</p>
                 <div className="flex flex-col gap-3">
                   <button
