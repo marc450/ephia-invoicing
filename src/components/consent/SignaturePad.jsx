@@ -80,7 +80,7 @@ export default function SignaturePad({ onSave, label, width = 320, height = 160 
         )}
       </div>
       <div className="flex gap-3">
-        <button className="px-4 py-2 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={clear}>Löschen</button>
+        <button className="px-4 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-500 hover:bg-gray-50 transition" onClick={clear}>Löschen</button>
         <button className={`px-5 py-2 text-xs rounded-lg transition ${hasStrokes ? "bg-gray-800 text-white hover:bg-gray-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`} onClick={save}>Bestätigen</button>
       </div>
     </div>

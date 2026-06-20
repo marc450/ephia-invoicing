@@ -108,6 +108,9 @@ export default function EphiaInvoice() {
   const [einheit, setEinheit] = useState("SE");
   const [mlStr, setMlStr] = useState("1");
   const [preisProMlStr, setPreisProMlStr] = useState("");
+  // Whole-ampoule billing (Verwurf): charge the full ampoule price regardless of injected amount
+  const [ganzeAmpulle, setGanzeAmpulle] = useState(false);
+  const [ampullenpreisStr, setAmpullenpreisStr] = useState("");
 
   // Zuschläge
   const [selectedZuschlaege, setSelectedZuschlaege] = useState([]);
@@ -163,6 +166,7 @@ export default function EphiaInvoice() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [createForPatient, setCreateForPatient] = useState(null); // patient object when creating invoice from patient profile
   const [createSource, setCreateSource] = useState("patientDetail"); // "patientDetail" or "list"
+  const [patientCreateModal, setPatientCreateModal] = useState(null); // null | "rechnung" | "hv" | "aufklaerung"
 
   const [validationErrors, setValidationErrors] = useState({});
   const [previewTab, setPreviewTab] = useState("rechnung"); // "rechnung" | "honorar"
@@ -192,6 +196,11 @@ export default function EphiaInvoice() {
       const found = invoices.find((i) => i._supabaseId === activeDocId || String(i.id) === activeDocId);
       if (found && (!viewingInvoice || viewingInvoice._supabaseId !== activeDocId)) {
         setViewingInvoice(found);
+        // Restore the correct preview tab from the URL so a direct link / page reload
+        // shows the right document (and the download button targets the right element).
+        if (pathname.startsWith("/honorarvereinbarungen/")) setPreviewTab("honorar");
+        else if (pathname.startsWith("/behandlungen/")) setPreviewTab("behandlung");
+        else if (pathname.startsWith("/rechnungen/")) setPreviewTab("rechnung");
       }
     }
   }, [activeDocId, invoices, dataLoaded]);
@@ -819,12 +828,13 @@ export default function EphiaInvoice() {
 
   const ml = parseDE(mlStr);
   const preisProMl = parseDE(preisProMlStr);
+  const ampullenpreis = parseDE(ampullenpreisStr);
 
   const inputCls = (field) =>
     `w-full border rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 ${
       validationErrors[field]
         ? "border-red-400 bg-red-50 focus:ring-red-400"
-        : "border-gray-200 focus:ring-blue-400"
+        : "border-[#DFE3EB] focus:ring-blue-400"
     }`;
   const clearError = (field) => {
     if (validationErrors[field]) setValidationErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
@@ -836,7 +846,7 @@ export default function EphiaInvoice() {
   const isMedical = indicationType === "medical";
   const noMwst = isKlein || isAusland || isMedical;
   // HV cost deviation: auto-adjust Gesamtbetrag when costs exceed HV base
-  const currentProductCost = Math.round(ml * preisProMl * 100) / 100;
+  const currentProductCost = ganzeAmpulle ? Math.round(ampullenpreis * 100) / 100 : Math.round(ml * preisProMl * 100) / 100;
   const currentSachkostenTotal = (sachkosten || []).reduce((sum, sk) => sum + parseDE(sk.betragStr), 0);
   const hvProductDelta = hvBaseGesamt != null && hvBaseProductCost != null ? Math.round((currentProductCost - hvBaseProductCost) * 100) / 100 : 0;
   const hvSachkostenDelta = hvBaseGesamt != null ? Math.round((currentSachkostenTotal - hvBaseSachkosten) * 100) / 100 : 0;
@@ -861,11 +871,11 @@ export default function EphiaInvoice() {
 
   const wunschGesamt = parseDE(wunschGesamtStr);
   const computedS = wunschGesamt > 0
-    ? calcWeightedForGesamt(wunschGesamt, ml, preisProMl, selectedZuschlaege, sachkosten, noMwst, useBeratungLang)
+    ? calcWeightedForGesamt(wunschGesamt, ml, preisProMl, selectedZuschlaege, sachkosten, noMwst, useBeratungLang, ganzeAmpulle, ampullenpreis)
     : null;
-  const liveItems = buildLineItems(praeparat || "Präparat", ml, preisProMl, selectedZuschlaege, sachkosten, computedS, einheit, useBeratungLang);
+  const liveItems = buildLineItems(praeparat || "Präparat", ml, preisProMl, selectedZuschlaege, sachkosten, computedS, einheit, useBeratungLang, ganzeAmpulle, ampullenpreis);
   const zwischensumme = liveItems.reduce((s, it) => s + it.betrag, 0);
-  const defaultItems = buildLineItems(praeparat || "Präparat", ml, preisProMl, [], sachkosten, null, einheit, useBeratungLang);
+  const defaultItems = buildLineItems(praeparat || "Präparat", ml, preisProMl, [], sachkosten, null, einheit, useBeratungLang, ganzeAmpulle, ampullenpreis);
   const defaultNetto = defaultItems.reduce((s, it) => s + it.betrag, 0);
   const defaultGesamt = noMwst ? defaultNetto : Math.round((defaultNetto * 1.19) * 100) / 100;
   const mwst = noMwst ? 0 : Math.round(zwischensumme * 0.19 * 100) / 100;
@@ -901,13 +911,15 @@ export default function EphiaInvoice() {
     // Address fields are optional
     if (!hvOnlyMode && !invoiceMeta.nummer.trim()) errors.nummer = true;
     if (!hvOnlyMode && invoiceMeta.nummer.trim()) {
-      const dupInvoice = invoices.find(inv => !inv._hvOnly && !inv._consentForm && inv.invoiceMeta?.nummer === invoiceMeta.nummer.trim() && inv.id !== amendingId);
+      const dupInvoice = invoices.find(inv => !inv._hvOnly && !inv._consentForm && !inv._standalone && !inv._deleted && inv.invoiceMeta?.nummer === invoiceMeta.nummer.trim() && inv.id !== amendingId);
       if (dupInvoice) errors.nummerDuplicate = true;
     }
     if (!invoiceMeta.datum) errors.datum = true;
     if (!praeparat.trim()) errors.praeparat = true;
     if (ml <= 0) errors.ml = true;
-    if (preisProMlStr === "" || preisProMl < 0) errors.preisProMl = true;
+    if (ganzeAmpulle) {
+      if (ampullenpreisStr === "" || ampullenpreis <= 0) errors.ampullenpreis = true;
+    } else if (preisProMlStr === "" || preisProMl < 0) errors.preisProMl = true;
 
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -1005,7 +1017,7 @@ export default function EphiaInvoice() {
   };
 
   const handleGenerate = async () => {
-    const items = buildLineItems(praeparat, ml, preisProMl, selectedZuschlaege, hvOnlyMode ? [] : sachkosten, computedS, einheit, useBeratungLang);
+    const items = buildLineItems(praeparat, ml, preisProMl, selectedZuschlaege, hvOnlyMode ? [] : sachkosten, computedS, einheit, useBeratungLang, ganzeAmpulle, ampullenpreis);
     const hasHV = hvOnlyMode ? true : (fromHvId ? false : items.some((it) => it.steigerung != null && it.steigerung > 3.5));
     const patientDbId = createForPatient?._raw?.id || createForPatient?.id || null;
     const entry = {
@@ -1022,6 +1034,9 @@ export default function EphiaInvoice() {
       mlStr,
       preisProMl,
       preisProMlStr,
+      ganzeAmpulle,
+      ampullenpreis,
+      ampullenpreisStr,
       wunschGesamtStr,
       targetGesamt: wunschGesamt > 0 ? wunschGesamt : undefined,
       useBeratungLang,
@@ -1142,6 +1157,7 @@ export default function EphiaInvoice() {
     setAmendingId(null);
     setPreviewTab(hvOnlyMode ? "honorar" : "rechnung");
     setHvOnlyMode(false);
+    if (patientCreateModal) setPatientCreateModal(null);
     navigateToPreview(entry);
     window.scrollTo(0, 0);
     setSaveToast(hvOnlyMode ? "Honorarvereinbarung gespeichert" : (fromHvId ? "Rechnung gespeichert (HV verknüpft)" : (hasHV ? "Dokumente gespeichert" : "Dokument gespeichert")));
@@ -1154,11 +1170,15 @@ export default function EphiaInvoice() {
     setPatient({ vorname: "", nachname: "", email: "", phone: "", address1: "", address2: "", country: "Deutschland" });
     const realInv = invoices.filter(i => i.invoiceMeta?.nummer && i.invoiceMeta.nummer !== "—");
     const latestInv = realInv.length > 0 ? realInv.reduce((best, i) => { const t = i._createdAt || i.savedAt || ""; const bt = best._createdAt || best.savedAt || ""; return t > bt ? i : best; }, realInv[0]) : null;
-    const suggestedNummer = latestInv ? nextInvoiceNumber(latestInv.invoiceMeta.nummer) || "" : "";
+    const existingNummern0 = new Set(realInv.map(i => i.invoiceMeta.nummer));
+    let suggestedNummer = latestInv ? nextInvoiceNumber(latestInv.invoiceMeta.nummer) || "" : "";
+    while (suggestedNummer && existingNummern0.has(suggestedNummer)) { suggestedNummer = nextInvoiceNumber(suggestedNummer) || ""; }
     setInvoiceMeta({ nummer: suggestedNummer, ort: invoiceMeta.ort, datum: new Date().toISOString().slice(0, 10), zahlungsfrist: practice.zahlungsfrist ?? 14 });
     setPraeparat("");
     setEinheit("SE");
     setMlStr("1");
+    setGanzeAmpulle(false);
+    setAmpullenpreisStr("");
     setSelectedZuschlaege([]);
     setSachkosten([]);
     setWunschGesamtStr(""); setUseBeratungLang(false);
@@ -1181,6 +1201,8 @@ export default function EphiaInvoice() {
     setPraeparat("");
     setEinheit("SE");
     setMlStr("1");
+    setGanzeAmpulle(false);
+    setAmpullenpreisStr("");
     setSelectedZuschlaege([]);
     setSachkosten([]);
     setWunschGesamtStr(""); setUseBeratungLang(false);
@@ -1208,6 +1230,8 @@ export default function EphiaInvoice() {
     setPraeparat("");
     setEinheit("SE");
     setMlStr("1");
+    setGanzeAmpulle(false);
+    setAmpullenpreisStr("");
     setSelectedZuschlaege([]);
     setSachkosten([]);
     setWunschGesamtStr(""); setUseBeratungLang(false);
@@ -1221,15 +1245,22 @@ export default function EphiaInvoice() {
     setHvBaseProductCost(null);
     setHvBaseSachkosten(0);
     setCreateForPatient(patientObj);
-    setCreateSource("list");
-    navigate("/erstellen");
+    if (isPatientDetail && window.innerWidth >= 1024) {
+      setCreateSource("patientDetail");
+      setPatientCreateModal("hv");
+    } else {
+      setCreateSource("list");
+      navigate("/erstellen");
+    }
   };
 
   const handleNewForPatient = (patientObj) => {
     const d = patientObj.data || patientObj._raw?.data || patientObj;
     const realInv = invoices.filter(i => i.invoiceMeta?.nummer && i.invoiceMeta.nummer !== "—");
     const latestInv = realInv.length > 0 ? realInv.reduce((best, i) => { const t = i._createdAt || i.savedAt || ""; const bt = best._createdAt || best.savedAt || ""; return t > bt ? i : best; }, realInv[0]) : null;
-    const suggestedNummer = latestInv ? nextInvoiceNumber(latestInv.invoiceMeta.nummer) || "" : "";
+    const existingNummern = new Set(realInv.map(i => i.invoiceMeta.nummer));
+    let suggestedNummer = latestInv ? nextInvoiceNumber(latestInv.invoiceMeta.nummer) || "" : "";
+    while (suggestedNummer && existingNummern.has(suggestedNummer)) { suggestedNummer = nextInvoiceNumber(suggestedNummer) || ""; }
     setPatient({
       vorname: d.vorname || patientObj.vorname || "",
       nachname: d.nachname || patientObj.nachname || "",
@@ -1243,6 +1274,8 @@ export default function EphiaInvoice() {
     setPraeparat("");
     setEinheit("SE");
     setMlStr("1");
+    setGanzeAmpulle(false);
+    setAmpullenpreisStr("");
     setSelectedZuschlaege([]);
     setSachkosten([]);
     setWunschGesamtStr(""); setUseBeratungLang(false);
@@ -1256,11 +1289,16 @@ export default function EphiaInvoice() {
     setHvBaseProductCost(null);
     setHvBaseSachkosten(0);
     setCreateForPatient(patientObj);
-    setCreateSource("list");
     setIndicationType("aesthetic");
     setDiagnose("");
     setShowIndicationModal(true);
-    navigate("/erstellen");
+    if (isPatientDetail && window.innerWidth >= 1024) {
+      setCreateSource("patientDetail");
+      setPatientCreateModal("rechnung");
+    } else {
+      setCreateSource("list");
+      navigate("/erstellen");
+    }
   };
 
   const handleAmend = (inv, fromTab) => {
@@ -1270,6 +1308,8 @@ export default function EphiaInvoice() {
     setEinheit(inv.einheit || "ml");
     setMlStr(inv.mlStr || (inv.ml != null ? toDE(inv.ml) : ""));
     setPreisProMlStr(inv.preisProMlStr || (inv.preisProMl != null ? toDE(inv.preisProMl) : ""));
+    setGanzeAmpulle(!!inv.ganzeAmpulle);
+    setAmpullenpreisStr(inv.ampullenpreisStr || (inv.ampullenpreis != null ? toDE(inv.ampullenpreis) : ""));
     setSelectedZuschlaege(inv.selectedZuschlaege || []);
     setSachkosten(inv.sachkosten || []);
     setWunschGesamtStr(inv.wunschGesamtStr || inv.wunschNettoStr || ""); setUseBeratungLang(inv.useBeratungLang || false); setBegruendung(inv.begruendung || "");
@@ -1290,6 +1330,9 @@ export default function EphiaInvoice() {
     setHvBaseProductCost(null);
     setHvBaseSachkosten(0);
     setAmendingId(inv.id);
+    setCreateForPatient(null);
+    setPatientCreateModal(null);
+    setValidationErrors({});
     navigate("/erstellen");
   };
 
@@ -1425,15 +1468,20 @@ export default function EphiaInvoice() {
     const nr = viewingInvoice?.invoiceMeta?.nummer || "X";
     const elementId = previewTab === "behandlung" ? "invoice-treatment-doc-preview" : previewTab === "honorar" ? "hv-preview" : "invoice-preview";
     const filename = previewTab === "behandlung" ? `Behandlungsdokumentation_${nr}.pdf` : previewTab === "honorar" ? `Honorarvereinbarung_${nr}.pdf` : `Rechnung_${nr}.pdf`;
-    const result = await generatePDFBlob(elementId);
-    if (!result) return;
-    const { pdf } = result;
-    // Append treatment doc as page 2 for invoices (not HV/behandlung) when flag is set
-    if (previewTab === "rechnung" && viewingInvoice?.attachTreatmentPdf && viewingInvoice?.treatmentDoc) {
-      await appendPageToPDF(pdf, "invoice-treatment-doc-preview");
+    try {
+      const result = await generatePDFBlob(elementId);
+      if (!result) { alert("PDF konnte nicht erstellt werden: Dokument nicht gefunden."); return; }
+      const { pdf } = result;
+      // Append treatment doc as page 2 for invoices (not HV/behandlung) when flag is set
+      if (previewTab === "rechnung" && viewingInvoice?.attachTreatmentPdf && viewingInvoice?.treatmentDoc) {
+        await appendPageToPDF(pdf, "invoice-treatment-doc-preview");
+      }
+      trackEvent("pdf_downloaded", { type: previewTab }, session?.access_token);
+      pdf.save(filename);
+    } catch (e) {
+      console.error("PDF download failed:", e);
+      alert("PDF konnte nicht erstellt werden: " + (e?.message || e));
     }
-    trackEvent("pdf_downloaded", { type: previewTab }, session?.access_token);
-    pdf.save(filename);
   };
 
   // ─── Behandlung CRUD handlers ───
@@ -1611,6 +1659,7 @@ export default function EphiaInvoice() {
     setInvoices(prev => [entry, ...prev]);
     setPreviewTab("consent");
     consentCompletingRef.current = true;
+    if (patientCreateModal) setPatientCreateModal(null);
     navigateToPreview(entry);
     setConsentPatient(null);
     setConsentTemplate(null);
@@ -1712,7 +1761,10 @@ export default function EphiaInvoice() {
         pdf.save(filename);
       }
     } catch (e) {
-      if (e.name !== "AbortError") console.error("Share failed:", e);
+      if (e.name !== "AbortError") {
+        console.error("Share failed:", e);
+        alert("PDF konnte nicht erstellt werden: " + (e?.message || e));
+      }
     }
   };
 
@@ -1749,16 +1801,31 @@ export default function EphiaInvoice() {
       }
       node = node.parentElement;
     }
-    try {
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#fff" });
+    // Drawing an SVG (or cross-origin) image onto a canvas taints it in Firefox,
+    // which makes canvas.toDataURL throw a SecurityError. On that failure we retry
+    // while skipping non-raster images (e.g. an SVG practice logo) so the user still
+    // gets a PDF instead of a button that silently does nothing.
+    const isSafeRasterImg = (n) => /^data:image\/(png|jpe?g|gif|webp|bmp)/i.test(n.getAttribute?.("src") || "");
+    const capture = async (extraOpts) => {
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#fff", ...extraOpts });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = pdf.internal.pageSize.getHeight();
       pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
       return { pdf, blob: pdf.output("blob") };
+    };
+    try {
+      try {
+        return await capture({});
+      } catch (e) {
+        if (e && (e.name === "SecurityError" || /taint/i.test(e.message || ""))) {
+          console.warn("PDF capture tainted by an image (likely an SVG logo in Firefox); retrying without non-raster images.", e);
+          return await capture({ ignoreElements: (n) => n.tagName === "IMG" && !isSafeRasterImg(n) });
+        }
+        throw e;
+      }
     } finally {
-      restoreRiskHighlights();
       hiddenParents.forEach(({ node: n, prev }) => { n.style.cssText = prev; });
     }
   };
@@ -2124,34 +2191,34 @@ export default function EphiaInvoice() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif", overflowX: "clip" }}>
+    <div className="min-h-screen bg-[#F5F8FA]" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif", overflowX: "clip" }}>
       <style>{`.hide-scrollbar::-webkit-scrollbar{display:none} .hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none} @keyframes plz-flash{0%{background-color:#d1fae5}100%{background-color:transparent}} .plz-autofilled{animation:plz-flash 1.2s ease-out}`}</style>
       {/* ─── Top bar ─── */}
-      {!isConsentPage && <div className="bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 sticky top-0 z-30">
+      {!isConsentPage && <div className="bg-white border-b border-[#DFE3EB] px-3 sm:px-6 py-2 sm:py-3 sticky top-0 z-30">
         <div className="flex items-center justify-between">
           <button onClick={() => navigate("/patients")} className="hover:opacity-70 transition flex-shrink-0"><img src="/logo.svg" alt="EPHIA" style={{ height: "28px" }} className="sm:hidden" /><img src="/logo.svg" alt="EPHIA" style={{ height: "33px" }} className="hidden sm:block" /></button>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
             <button
-              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${pathname === "/patients" || pathname === "/" || isPatientDetail || isCreatePage ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-gray-200 hover:bg-gray-50"}`}
+              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${pathname === "/patients" || pathname === "/" || isPatientDetail || isCreatePage ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-[#DFE3EB] hover:bg-gray-50"}`}
               onClick={() => navigate("/patients")}
             >
               <span className="sm:hidden"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg></span><span className="hidden sm:inline">Patient:innen</span>
             </button>
             {patients.length > 0 && (<button
-              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${isListPage || isPreviewPage || isConsentPage ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-gray-200 hover:bg-gray-50"}`}
+              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${isListPage || isPreviewPage || isConsentPage ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-[#DFE3EB] hover:bg-gray-50"}`}
               onClick={() => navigate("/rechnungen")}
             >
               <span className="sm:hidden"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></span><span className="hidden sm:inline">Dokumente</span>
             </button>)}
-            <div className="border-l border-gray-200 h-5 mx-0.5 sm:mx-1 hidden sm:block"></div>
+            <div className="border-l border-[#DFE3EB] h-5 mx-0.5 sm:mx-1 hidden sm:block"></div>
             <button
-              className="text-xs px-2 sm:px-3 py-1.5 rounded border transition text-gray-500 hover:text-gray-700 border-gray-200 hover:bg-gray-50"
+              className="text-xs px-2 sm:px-3 py-1.5 rounded border transition text-gray-500 hover:text-gray-700 border-[#DFE3EB] hover:bg-gray-50"
               onClick={() => setShowSettings(true)}
             >
               <span className="sm:hidden"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span><span className="hidden sm:inline">Praxis-Einstellungen</span>
             </button>
             <button
-              className="text-xs px-2 sm:px-3 py-1.5 rounded border border-gray-200 text-red-600 hover:text-red-700 hover:border-red-300 hover:bg-red-50 transition"
+              className="text-xs px-2 sm:px-3 py-1.5 rounded border border-[#DFE3EB] text-red-600 hover:text-red-700 hover:border-red-300 hover:bg-red-50 transition"
               onClick={handleSignOut}
             >
               <span className="sm:hidden"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></span><span className="hidden sm:inline">Abmelden</span>
@@ -2177,7 +2244,7 @@ export default function EphiaInvoice() {
                 }
               </p>
               <div className="flex flex-wrap gap-2 justify-end">
-                <button className="px-3 py-1.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeleteId(null)}>Abbrechen</button>
+                <button className="px-3 py-1.5 text-xs rounded border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeleteId(null)}>Abbrechen</button>
                 {delHasHV && (
                   <button className="px-3 py-1.5 text-xs rounded border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100" onClick={confirmDeleteKeepHV}>Nur Rechnung löschen</button>
                 )}
@@ -2200,13 +2267,17 @@ export default function EphiaInvoice() {
               Dieser Aufklärungsbogen ersetzt nicht das persönliche Aufklärungsgespräch zwischen Ärzt:in und Patient:in. Das individuelle Gespräch ist das rechtlich entscheidende Element der Aufklärung. Der Bogen dient lediglich als Dokumentationshilfe und Ergänzung. Bitte prüfe, ob der Bogen den Anforderungen Deiner Praxis und der geltenden Rechtslage entspricht, und passe ihn gegebenenfalls an.
             </p>
             <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-              <button className="px-3 py-2 sm:py-1.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 w-full sm:w-auto" onClick={() => setConsentWarningPatient(null)}>Abbrechen</button>
+              <button className="px-3 py-2 sm:py-1.5 text-xs rounded border border-[#DFE3EB] text-gray-600 hover:bg-gray-50 w-full sm:w-auto" onClick={() => setConsentWarningPatient(null)}>Abbrechen</button>
               <button className="px-3 py-2 sm:py-1.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700 font-medium w-full sm:w-auto" onClick={() => {
                 const p = consentWarningPatient;
                 setConsentWarningPatient(null);
                 setConsentPatient(p);
                 setConsentTemplate(CONSENT_TEMPLATES[0]);
-                navigate("/aufklaerung/neu");
+                if (isPatientDetail && window.innerWidth >= 1024) {
+                  setPatientCreateModal("aufklaerung");
+                } else {
+                  navigate("/aufklaerung/neu");
+                }
               }}>Verstanden, fortfahren</button>
             </div>
           </div>
@@ -2231,7 +2302,7 @@ export default function EphiaInvoice() {
                 <strong>{pName}</strong> und alle zugehörigen Rechnungen ({pInvoices.length}) und Honorarvereinbarungen ({pHVs.length}) werden unwiderruflich gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
               </p>
               <div className="flex gap-2 justify-end">
-                <button className="px-3 py-1.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeletePatient(null)}>Abbrechen</button>
+                <button className="px-3 py-1.5 text-xs rounded border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeletePatient(null)}>Abbrechen</button>
                 <button className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700" onClick={confirmDeletePatientAction}>Löschen</button>
               </div>
             </div>
@@ -2251,7 +2322,7 @@ export default function EphiaInvoice() {
 
       {/* Verdienst Popup */}
       {showVerdienst && (() => {
-        const praeparatKosten = ml * preisProMl;
+        const praeparatKosten = ganzeAmpulle ? ampullenpreis : ml * preisProMl;
         const sachkostenTotal = (sachkosten || []).reduce((sum, sk) => sum + parseDE(sk.betragStr), 0);
         const zuschlagTotal = (selectedZuschlaege || []).reduce((sum, code) => {
           const z = ZUSCHLAEGE.find((zs) => zs.code === code);
@@ -2280,7 +2351,7 @@ export default function EphiaInvoice() {
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Präparatkosten ({mlStr || "0"} × {preisProMlStr || "0"} €)</span>
+                  <span className="text-gray-500">{ganzeAmpulle ? "Präparatkosten (1 Ampulle)" : `Präparatkosten (${mlStr || "0"} × ${preisProMlStr || "0"} €)`}</span>
                   <span className="text-gray-700">{praeparatKosten > 0 ? "−" : ""} {fmt(praeparatKosten).replace(".", ",")} €</span>
                 </div>
                 {sachkostenTotal > 0 && (
@@ -2316,19 +2387,61 @@ export default function EphiaInvoice() {
         />
       )}
 
+      {/* Consent form modal (desktop patient detail) */}
+      {patientCreateModal === "aufklaerung" && consentTemplate && consentPatient && (
+        <div className="fixed inset-0 bg-black/40 z-50 overflow-y-auto">
+          <div className="min-h-full flex items-start justify-center py-6 px-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-800">Neuer Aufklärungsbogen</h2>
+                <button className="p-1 text-gray-400 hover:text-gray-600 transition" onClick={() => { setPatientCreateModal(null); setConsentPatient(null); setConsentTemplate(null); }}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <ConsentFormView
+                template={consentTemplate}
+                patient={consentPatient}
+                practice={practice}
+                onComplete={handleConsentComplete}
+                onCancel={() => { setPatientCreateModal(null); setConsentPatient(null); setConsentTemplate(null); }}
+                isModal
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {pathname !== "/agb" && pathname !== "/impressum" && pathname !== "/datenschutz" && !isConsentPage && <div className={`mx-auto py-3 sm:py-5 ${isPatientDetail ? "max-w-full px-4 sm:px-6 lg:px-8" : isCreatePage ? "max-w-7xl px-3 sm:px-6" : isListPage || pathname === "/patients" || pathname === "/" ? "max-w-6xl px-3 sm:px-6" : isPreviewPage ? "max-w-5xl px-3 sm:px-6" : "max-w-3xl px-3 sm:px-6"}`}>
         {/* ═══ CREATE PAGE ═══ */}
-        {isCreatePage && (
+        {(isCreatePage || patientCreateModal === "rechnung" || patientCreateModal === "hv") && (
           <>
+          {/* Modal backdrop + wrapper for patient detail mode */}
+          {patientCreateModal && !showIndicationModal && <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPatientCreateModal(null)} />}
+          <div className={patientCreateModal ? "fixed inset-0 z-50 overflow-y-auto" : ""}>
+          <div className={patientCreateModal ? "max-w-7xl mx-auto py-6 px-3 sm:px-6" : ""}>
+          {patientCreateModal && !showIndicationModal && (
+            <div className="flex justify-end mb-2">
+              <button className="p-2 rounded-full bg-white/10 text-white/70 hover:text-white hover:bg-white/20 transition" onClick={() => setPatientCreateModal(null)}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          )}
           {/* ═══ Indication Type Modal ═══ */}
           {showIndicationModal && (
             <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl p-6 sm:p-8" style={{ maxWidth: 480, width: "100%" }}>
-                <h3 className="text-base font-semibold text-gray-800 mb-1">Art der Abrechnung</h3>
+              <div className="relative bg-white rounded-xl shadow-2xl p-6 sm:p-8" style={{ maxWidth: 480, width: "100%" }}>
+                <button
+                  className="absolute top-3 left-3 p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+                  onClick={() => { setShowIndicationModal(false); setAmendingId(null); setHvOnlyMode(false); if (patientCreateModal) { setPatientCreateModal(null); } else { navigate("/rechnungen"); } }}
+                  aria-label="Abbrechen"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+                <h3 className="text-base font-semibold text-gray-800 mb-1 mt-6">Art der Abrechnung</h3>
                 <p className="text-xs text-gray-400 mb-5">Wähle, ob die Rechnung für eine ästhetische oder therapeutische Indikation erstellt werden soll.</p>
                 <div className="flex flex-col gap-3">
                   <button
-                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition text-left group"
+                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-[#DFE3EB] hover:border-blue-400 hover:bg-blue-50 transition text-left group"
                     onClick={() => { setIndicationType("aesthetic"); setDiagnose(""); setShowIndicationModal(false); }}
                   >
                     <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
@@ -2340,7 +2453,7 @@ export default function EphiaInvoice() {
                     </div>
                   </button>
                   <button
-                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition text-left group"
+                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-[#DFE3EB] hover:border-blue-400 hover:bg-blue-50 transition text-left group"
                     onClick={() => { setIndicationType("medical"); setShowIndicationModal(false); }}
                   >
                     <div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0">
@@ -2355,11 +2468,12 @@ export default function EphiaInvoice() {
               </div>
             </div>
           )}
+          {!showIndicationModal && (
           <div className="flex gap-6 items-start">
           {/* Left side: Form */}
-          <div className="w-full lg:w-[400px] flex-shrink-0 bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+          <div className="w-full lg:w-[400px] flex-shrink-0 bg-white rounded-lg border border-[#DFE3EB] p-4 sm:p-6">
             {createForPatient && !amendingId && (
-              <button className="text-xs text-gray-400 hover:text-gray-600 mb-2" onClick={() => { setCreateForPatient(null); navigate(createSource === "list" ? "/rechnungen" : `/patients/${createForPatient?.id}`); }}>{createSource === "list" ? "← Zurück zu Dokumente" : `← Zurück zu ${patient.vorname} ${patient.nachname}`}</button>
+              <button className="text-xs text-gray-400 hover:text-gray-600 mb-2" onClick={() => { if (patientCreateModal) { setPatientCreateModal(null); return; } setCreateForPatient(null); navigate(createSource === "list" ? "/rechnungen" : `/patients/${createForPatient?.id}`); }}>{patientCreateModal ? `← Zurück zu ${patient.vorname} ${patient.nachname}` : createSource === "list" ? "← Zurück zu Dokumente" : `← Zurück zu ${patient.vorname} ${patient.nachname}`}</button>
             )}
             <h2 className="text-base font-semibold text-gray-800 mb-1">
               {hvOnlyMode
@@ -2376,7 +2490,7 @@ export default function EphiaInvoice() {
                   : "Trag einfach die Behandlungsdetails ein. Deine Rechnung wird automatisch nach GOÄ erstellt.")}
             </p>
             {amendingId && !hvOnlyMode && effectiveMaxSteigerung > 3.5 && (
-              <div className="mb-6 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-xs text-gray-500">
+              <div className="mb-6 px-3 py-2 bg-gray-50 border border-[#DFE3EB] rounded text-xs text-gray-500">
                 Änderungen werden auch in der zugehörigen Honorarvereinbarung übernommen.
               </div>
             )}
@@ -2402,6 +2516,8 @@ export default function EphiaInvoice() {
                 setEinheit(hv.einheit || "SE");
                 setMlStr(hv.mlStr || (hv.ml != null ? (hv.ml % 1 === 0 ? String(hv.ml) : hv.ml.toFixed(2).replace(".", ",")) : "1"));
                 setPreisProMlStr(hv.preisProMlStr || (hv.preisProMl != null ? hv.preisProMl.toFixed(2).replace(".", ",") : ""));
+                setGanzeAmpulle(!!hv.ganzeAmpulle);
+                setAmpullenpreisStr(hv.ampullenpreisStr || (hv.ampullenpreis != null ? hv.ampullenpreis.toFixed(2).replace(".", ",") : ""));
                 setSelectedZuschlaege(hv.selectedZuschlaege || []);
                 setWunschGesamtStr(hv.wunschGesamtStr || "");
                 setUseBeratungLang(hv.useBeratungLang || false);
@@ -2419,7 +2535,7 @@ export default function EphiaInvoice() {
                 const hvMl = hv.ml != null ? hv.ml : parseDE(hv.mlStr || "0");
                 const hvPpm = hv.preisProMl != null ? hv.preisProMl : parseDE(hv.preisProMlStr || "0");
                 setHvBaseGesamt(hvGesamt > 0 ? hvGesamt : null);
-                setHvBaseProductCost(Math.round(hvMl * hvPpm * 100) / 100);
+                setHvBaseProductCost(hv.ganzeAmpulle ? Math.round((hv.ampullenpreis != null ? hv.ampullenpreis : parseDE(hv.ampullenpreisStr || "0")) * 100) / 100 : Math.round(hvMl * hvPpm * 100) / 100);
                 setHvBaseSachkosten(0);
                 setSachkosten([]);
                 setFromHvId(hv.id);
@@ -2488,7 +2604,7 @@ export default function EphiaInvoice() {
                   {!hvOnlyMode && (
                   <div>
                     <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">Zahlungsfrist (Tage) <InfoTooltip>Standardwert aus den Praxiseinstellungen. Du kannst ihn hier für diese Rechnung anpassen.</InfoTooltip></label>
-                    <input type="number" min="0" className="w-full border border-gray-200 rounded px-1.5 sm:px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={invoiceMeta.zahlungsfrist ?? ""} placeholder="14" onChange={(e) => setInvoiceMeta({ ...invoiceMeta, zahlungsfrist: e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0 })} />
+                    <input type="number" min="0" className="w-full border border-[#DFE3EB] rounded px-1.5 sm:px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={invoiceMeta.zahlungsfrist ?? ""} placeholder="14" onChange={(e) => setInvoiceMeta({ ...invoiceMeta, zahlungsfrist: e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0 })} />
                   </div>
                   )}
                 </div>
@@ -2503,7 +2619,7 @@ export default function EphiaInvoice() {
                 </div>
                 <div className="relative">
                   <input
-                    className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                     value={diagnose}
                     placeholder="z. B. Bruxismus (F45.8)"
                     onChange={(e) => setDiagnose(e.target.value)}
@@ -2521,7 +2637,7 @@ export default function EphiaInvoice() {
                     // Don't show if already exactly selected
                     if (matches.length === 1 && diagnose === `${matches[0].diagnosis} (${matches[0].icd10})`) return null;
                     return (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#DFE3EB] rounded-lg shadow-lg z-10 overflow-hidden">
                         {matches.map((c) => (
                           <button
                             key={c.icd10}
@@ -2570,7 +2686,7 @@ export default function EphiaInvoice() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Telefon</label>
-                <input type="tel" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={patient.phone} placeholder="+49 123 456789" onChange={(e) => setPatient({ ...patient, phone: e.target.value })} />
+                <input type="tel" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={patient.phone} placeholder="+49 123 456789" onChange={(e) => setPatient({ ...patient, phone: e.target.value })} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Straße & Hausnummer</label>
@@ -2589,7 +2705,7 @@ export default function EphiaInvoice() {
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Land</label>
                 <select
-                    className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                    className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
                     value={patient.country}
                     onChange={(e) => setPatient({ ...patient, country: e.target.value })}
                   >
@@ -2647,7 +2763,7 @@ export default function EphiaInvoice() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Einheit</label>
-                  <select className="w-full border border-gray-200 rounded px-1.5 sm:px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={einheit} onChange={(e) => setEinheit(e.target.value)}>
+                  <select className="w-full border border-[#DFE3EB] rounded px-1.5 sm:px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={einheit} onChange={(e) => setEinheit(e.target.value)}>
                     <option value="ml">ml</option>
                     <option value="SE">SE</option>
                     <option value="IE">IE</option>
@@ -2663,10 +2779,25 @@ export default function EphiaInvoice() {
                   <label className="block text-xs font-medium text-gray-500 mb-1">{hvOnlyMode ? "Geplante Menge" : "Menge"} *</label>
                   <input id="field-ml" type="text" inputMode="decimal" className={inputCls("ml")} value={mlStr} placeholder="0,45" onChange={(e) => { const v = e.target.value.replace(/[^\d,.+*×x\- ]/g, ""); setMlStr(v); clearError("ml"); }} />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1"><span className="hidden sm:inline">Preis / </span><span className="sm:hidden">€ / </span>{einheit}<span className="hidden sm:inline"> (€)</span> *</label>
-                  <input id="field-preisProMl" type="text" inputMode="decimal" className={inputCls("preisProMl")} value={preisProMlStr} placeholder="" onChange={(e) => { const v = e.target.value.replace(/[^\d,.+*×x\- ]/g, ""); setPreisProMlStr(v); clearError("preisProMl"); }} />
-                </div>
+                {ganzeAmpulle ? (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Ampullenpreis (€) *</label>
+                    <input id="field-ampullenpreis" type="text" inputMode="decimal" className={inputCls("ampullenpreis")} value={ampullenpreisStr} placeholder="z.B. 64,00" onChange={(e) => { const v = e.target.value.replace(/[^\d,.+*×x\- ]/g, ""); setAmpullenpreisStr(v); clearError("ampullenpreis"); }} />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1"><span className="hidden sm:inline">Preis / </span><span className="sm:hidden">€ / </span>{einheit}<span className="hidden sm:inline"> (€)</span> *</label>
+                    <input id="field-preisProMl" type="text" inputMode="decimal" className={inputCls("preisProMl")} value={preisProMlStr} placeholder="" onChange={(e) => { const v = e.target.value.replace(/[^\d,.+*×x\- ]/g, ""); setPreisProMlStr(v); clearError("preisProMl"); }} />
+                  </div>
+                )}
+              </div>
+              {/* ── Ganze Ampulle berechnen (Verwurf) ── */}
+              <div className="flex items-start gap-2">
+                <input id="field-ganzeAmpulle" type="checkbox" className="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-500 focus:ring-blue-400" checked={ganzeAmpulle} onChange={(e) => { setGanzeAmpulle(e.target.checked); clearError("preisProMl"); clearError("ampullenpreis"); }} />
+                <label htmlFor="field-ganzeAmpulle" className="text-sm text-gray-700 cursor-pointer select-none">
+                  Ganze Ampulle berechnen
+                  <span className="block text-xs text-gray-400">Berechnet den vollen Ampullenpreis, unabhängig von der injizierten Menge (Verwurf nach GOÄ §10).</span>
+                </label>
               </div>
               </div>
             </div>
@@ -2682,8 +2813,8 @@ export default function EphiaInvoice() {
               </div>
               {sachkosten.map((sk) => (
                 <div key={sk.id} className="flex gap-3 items-center mt-2">
-                  <input className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-gray-300 outline-none" placeholder="z.B. Kühlbeutel z. Mitnahme" value={sk.description} onChange={(e) => updateSachkosten(sk.id, "description", e.target.value)} />
-                  <input className="w-28 px-3 py-2 rounded-lg border border-gray-200 text-sm text-right focus:ring-2 focus:ring-gray-300 outline-none" placeholder="z.B. 4,50" value={sk.betragStr} onChange={(e) => updateSachkosten(sk.id, "betragStr", e.target.value)} />
+                  <input className="flex-1 px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm focus:ring-2 focus:ring-gray-300 outline-none" placeholder="z.B. Kühlbeutel z. Mitnahme" value={sk.description} onChange={(e) => updateSachkosten(sk.id, "description", e.target.value)} />
+                  <input className="w-28 px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm text-right focus:ring-2 focus:ring-gray-300 outline-none" placeholder="z.B. 4,50" value={sk.betragStr} onChange={(e) => updateSachkosten(sk.id, "betragStr", e.target.value)} />
                   <button className="text-gray-400 hover:text-red-500 transition" onClick={() => removeSachkosten(sk.id)} title="Entfernen">
                     <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
                   </button>
@@ -2720,7 +2851,7 @@ export default function EphiaInvoice() {
                         className={`px-3 py-1.5 text-xs rounded-lg border transition ${
                           active
                             ? "bg-blue-50 border-blue-300 text-blue-700"
-                            : "border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                            : "border-[#DFE3EB] text-gray-500 hover:border-gray-300 hover:bg-gray-50"
                         }`}
                         onClick={() => toggleZuschlag(z.code)}
                       >
@@ -2756,7 +2887,7 @@ export default function EphiaInvoice() {
                 <input
                   type="text"
                   inputMode="decimal"
-                  className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                   value={wunschGesamtStr}
                   placeholder={fmt(defaultGesamt).replace(".", ",")}
                   onChange={(e) => setWunschGesamtStr(e.target.value)}
@@ -2778,7 +2909,7 @@ export default function EphiaInvoice() {
                     ? <div className="mt-2 px-3 py-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
                         Steigerungssatz über 3,5-fach — Honorarvereinbarung ist erforderlich.
                       </div>
-                    : <div className="mt-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-xs text-gray-500">
+                    : <div className="mt-2 px-3 py-2 bg-gray-50 border border-[#DFE3EB] rounded text-xs text-gray-500">
                         Steigerungssatz unter 3,5-fach — keine Honorarvereinbarung nötig.
                       </div>
                 )
@@ -2789,7 +2920,7 @@ export default function EphiaInvoice() {
                       Honorarvereinbarung ist verknüpft. Anforderungen gemäß §2 GOÄ sind erfüllt.
                     </div>
                   ) : effectiveMaxSteigerung > 3.5 ? (
-                    <div className="mt-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-xs text-gray-500">
+                    <div className="mt-2 px-3 py-2 bg-gray-50 border border-[#DFE3EB] rounded text-xs text-gray-500">
                       Über 3,5-fach: Eine Honorarvereinbarung gemäß §2 GOÄ wird zusätzlich zur Rechnung erstellt und ein Verweis auf die Honorarvereinbarung wird auf der Rechnung vermerkt.
                     </div>
                   ) : null}
@@ -2802,7 +2933,7 @@ export default function EphiaInvoice() {
                     <div className="mt-2">
                       <label className="text-xs text-gray-500 mb-1 block">Begründung gemäß §5 Abs. 2 GOÄ</label>
                       <textarea
-                        className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none"
+                        className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none"
                         rows={2}
                         value={begruendung}
                         onChange={(e) => setBegruendung(e.target.value)}
@@ -2832,7 +2963,7 @@ export default function EphiaInvoice() {
                 </label>
               )}
               <div className="flex items-center justify-between">
-                <button className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50" onClick={() => { setAmendingId(null); setHvOnlyMode(false); navigate("/rechnungen"); }}>
+                <button className="px-4 py-2 text-sm rounded-lg border border-[#DFE3EB] text-gray-500 hover:bg-gray-50" onClick={() => { setAmendingId(null); setHvOnlyMode(false); navigate("/rechnungen"); }}>
                   Abbrechen
                 </button>
                 <button
@@ -2853,7 +2984,7 @@ export default function EphiaInvoice() {
           </div>
           {/* Right side: Live Preview (hidden on mobile) */}
           <div className="flex-1 min-w-0 sticky top-4 self-start hidden lg:block">
-            <div className="rounded-lg border border-gray-200 overflow-hidden">
+            <div className="rounded-lg border border-[#DFE3EB] overflow-hidden">
               <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{hvOnlyMode ? "Vorschau Honorarvereinbarung" : "Vorschau Rechnung"}</p>
               </div>
@@ -2880,11 +3011,14 @@ export default function EphiaInvoice() {
             </div>
           </div>
           </div>
+          )}
+          </div>
+          </div>
           </>
         )}
 
         {/* ═══ MOBILE PREVIEW FAB (create page only) ═══ */}
-        {isCreatePage && (
+        {(isCreatePage || patientCreateModal === "rechnung" || patientCreateModal === "hv") && (
           <button
             className="lg:hidden fixed bottom-6 right-5 z-40 bg-gray-800 text-white rounded-full shadow-lg flex items-center gap-1.5 pl-3 pr-3.5 py-2.5 text-xs font-medium hover:bg-gray-700 active:bg-gray-600 transition"
             onClick={() => setMobilePreviewOpen(true)}
@@ -3006,7 +3140,7 @@ export default function EphiaInvoice() {
         {/* ═══ ONBOARDING STEP 0: WELCOME ═══ */}
         {onboardingStep === "welcome" && (pathname === "/patients" || pathname === "/") && dataLoaded && !showSettings && (
           <div className="max-w-lg mx-auto mt-12 sm:mt-20 px-4">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#DFE3EB] shadow-sm overflow-hidden">
               <div className="px-6 py-8">
                 <div className="text-3xl mb-4 text-center">👋</div>
                 <h1 className="text-xl font-semibold text-gray-800 mb-3 text-center">Willkommen bei EPHIA!</h1>
@@ -3041,7 +3175,7 @@ export default function EphiaInvoice() {
         {/* ═══ ONBOARDING STEP 2 + GENERAL EMPTY STATE ═══ */}
         {(pathname === "/patients" || pathname === "/") && patients.length === 0 && dataLoaded && !showSettings && onboardingStep !== "welcome" && (
           <div className="max-w-lg mx-auto mt-12 sm:mt-20 px-4">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-[#DFE3EB] shadow-sm overflow-hidden">
               {onboardingStep === "patient" ? (
                 <div className="px-6 pt-6 pb-4 border-b border-gray-100">
                   <div className="flex items-center gap-2 mb-2">
@@ -3071,38 +3205,38 @@ export default function EphiaInvoice() {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-0.5">Vorname *</label>
-                    <input className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.vorname} placeholder="Maria" onChange={(e) => setNewPatientData({ ...newPatientData, vorname: e.target.value })} />
+                    <input className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.vorname} placeholder="Maria" onChange={(e) => setNewPatientData({ ...newPatientData, vorname: e.target.value })} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-0.5">Nachname *</label>
-                    <input className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.nachname} placeholder="Müller" onChange={(e) => setNewPatientData({ ...newPatientData, nachname: e.target.value })} />
+                    <input className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.nachname} placeholder="Müller" onChange={(e) => setNewPatientData({ ...newPatientData, nachname: e.target.value })} />
                   </div>
                 </div>
                 <div className="mb-3">
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">E-Mail</label>
-                  <input type="email" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.email} placeholder="maria.mueller@beispiel.de" onChange={(e) => setNewPatientData({ ...newPatientData, email: e.target.value })} />
+                  <input type="email" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.email} placeholder="maria.mueller@beispiel.de" onChange={(e) => setNewPatientData({ ...newPatientData, email: e.target.value })} />
                 </div>
                 <div className="mb-3">
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">Telefon</label>
-                  <input type="tel" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.phone} placeholder="+49 123 456789" onChange={(e) => setNewPatientData({ ...newPatientData, phone: e.target.value })} />
+                  <input type="tel" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.phone} placeholder="+49 123 456789" onChange={(e) => setNewPatientData({ ...newPatientData, phone: e.target.value })} />
                 </div>
                 <div className="mb-3">
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">Straße & Hausnummer</label>
-                  <input className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.address1} placeholder="Musterstraße 5" onChange={(e) => setNewPatientData({ ...newPatientData, address1: e.target.value })} />
+                  <input className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.address1} placeholder="Musterstraße 5" onChange={(e) => setNewPatientData({ ...newPatientData, address1: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-0.5">PLZ</label>
-                    <input className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={parsePlzOrt(newPatientData.address2).plz} placeholder="10117" maxLength={5} inputMode="numeric" onChange={(e) => { const v = e.target.value; const { ort } = parsePlzOrt(newPatientData.address2); setNewPatientData({ ...newPatientData, address2: combinePlzOrt(v, ort) }); if (v.length === 5 && !ort && (!newPatientData.country || newPatientData.country === "Deutschland")) lookupPlz(v).then(city => { if (city) { setNewPatientData(d => ({ ...d, address2: combinePlzOrt(v, parsePlzOrt(d.address2).ort || city) })); const ortEl = e.target.closest(".grid")?.querySelector("[data-ort-field]"); flashOrtField(ortEl); } }); }} />
+                    <input className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={parsePlzOrt(newPatientData.address2).plz} placeholder="10117" maxLength={5} inputMode="numeric" onChange={(e) => { const v = e.target.value; const { ort } = parsePlzOrt(newPatientData.address2); setNewPatientData({ ...newPatientData, address2: combinePlzOrt(v, ort) }); if (v.length === 5 && !ort && (!newPatientData.country || newPatientData.country === "Deutschland")) lookupPlz(v).then(city => { if (city) { setNewPatientData(d => ({ ...d, address2: combinePlzOrt(v, parsePlzOrt(d.address2).ort || city) })); const ortEl = e.target.closest(".grid")?.querySelector("[data-ort-field]"); flashOrtField(ortEl); } }); }} />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-500 mb-0.5">Ort</label>
-                    <input data-ort-field className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={parsePlzOrt(newPatientData.address2).ort} placeholder="Berlin" onChange={(e) => { const { plz } = parsePlzOrt(newPatientData.address2); setNewPatientData({ ...newPatientData, address2: combinePlzOrt(plz, e.target.value) }); }} />
+                    <input data-ort-field className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={parsePlzOrt(newPatientData.address2).ort} placeholder="Berlin" onChange={(e) => { const { plz } = parsePlzOrt(newPatientData.address2); setNewPatientData({ ...newPatientData, address2: combinePlzOrt(plz, e.target.value) }); }} />
                   </div>
                 </div>
                 <div className="mb-3">
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">Land</label>
-                  <select className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newPatientData.country} onChange={(e) => setNewPatientData({ ...newPatientData, country: e.target.value })}>
+                  <select className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newPatientData.country} onChange={(e) => setNewPatientData({ ...newPatientData, country: e.target.value })}>
                     {PRIORITY_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
                     <option disabled>────────────</option>
                     {OTHER_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -3113,11 +3247,11 @@ export default function EphiaInvoice() {
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-0.5">Geburtsdatum</label>
-                      <input type="date" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.geburtsdatum} onChange={(e) => setNewPatientData({ ...newPatientData, geburtsdatum: e.target.value })} />
+                      <input type="date" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.geburtsdatum} onChange={(e) => setNewPatientData({ ...newPatientData, geburtsdatum: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-0.5">Geschlecht</label>
-                      <select className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newPatientData.geschlecht} onChange={(e) => setNewPatientData({ ...newPatientData, geschlecht: e.target.value })}>
+                      <select className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newPatientData.geschlecht} onChange={(e) => setNewPatientData({ ...newPatientData, geschlecht: e.target.value })}>
                         <option value="">Bitte wählen</option>
                         <option value="w">Weiblich</option>
                         <option value="m">Männlich</option>
@@ -3128,11 +3262,11 @@ export default function EphiaInvoice() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-0.5">Größe (cm)</label>
-                      <input type="number" min="0" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.groesse} placeholder="170" onChange={(e) => setNewPatientData({ ...newPatientData, groesse: e.target.value })} />
+                      <input type="number" min="0" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.groesse} placeholder="170" onChange={(e) => setNewPatientData({ ...newPatientData, groesse: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-0.5">Gewicht (kg)</label>
-                      <input type="number" min="0" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.gewicht} placeholder="70" onChange={(e) => setNewPatientData({ ...newPatientData, gewicht: e.target.value })} />
+                      <input type="number" min="0" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.gewicht} placeholder="70" onChange={(e) => setNewPatientData({ ...newPatientData, gewicht: e.target.value })} />
                     </div>
                   </div>
                 </div>
@@ -3192,7 +3326,7 @@ export default function EphiaInvoice() {
         )}
 
         {(pathname === "/patients" || pathname === "/") && patients.length > 0 && showAddPatient && (
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-lg border border-[#DFE3EB] overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100">
               <button className="text-xs text-gray-400 hover:text-gray-600 mb-2" onClick={() => { setShowAddPatient(false); setNewPatientData(EMPTY_PATIENT); }}>← Zurück zur Patient:innenliste</button>
               <h2 className="text-base font-semibold text-gray-800">Neue:n Patient:in anlegen</h2>
@@ -3201,38 +3335,38 @@ export default function EphiaInvoice() {
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">Vorname *</label>
-                  <input className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.vorname} placeholder="Maria" onChange={(e) => setNewPatientData({ ...newPatientData, vorname: e.target.value })} />
+                  <input className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.vorname} placeholder="Maria" onChange={(e) => setNewPatientData({ ...newPatientData, vorname: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">Nachname *</label>
-                  <input className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.nachname} placeholder="Müller" onChange={(e) => setNewPatientData({ ...newPatientData, nachname: e.target.value })} />
+                  <input className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.nachname} placeholder="Müller" onChange={(e) => setNewPatientData({ ...newPatientData, nachname: e.target.value })} />
                 </div>
               </div>
               <div className="mb-3">
                 <label className="block text-xs font-medium text-gray-500 mb-0.5">E-Mail</label>
-                <input type="email" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.email} placeholder="maria.mueller@beispiel.de" onChange={(e) => setNewPatientData({ ...newPatientData, email: e.target.value })} />
+                <input type="email" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.email} placeholder="maria.mueller@beispiel.de" onChange={(e) => setNewPatientData({ ...newPatientData, email: e.target.value })} />
               </div>
               <div className="mb-3">
                 <label className="block text-xs font-medium text-gray-500 mb-0.5">Telefon</label>
-                <input type="tel" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.phone} placeholder="+49 123 456789" onChange={(e) => setNewPatientData({ ...newPatientData, phone: e.target.value })} />
+                <input type="tel" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.phone} placeholder="+49 123 456789" onChange={(e) => setNewPatientData({ ...newPatientData, phone: e.target.value })} />
               </div>
               <div className="mb-3">
                 <label className="block text-xs font-medium text-gray-500 mb-0.5">Straße & Hausnummer</label>
-                <input className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.address1} placeholder="Musterstraße 5" onChange={(e) => setNewPatientData({ ...newPatientData, address1: e.target.value })} />
+                <input className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.address1} placeholder="Musterstraße 5" onChange={(e) => setNewPatientData({ ...newPatientData, address1: e.target.value })} />
               </div>
               <div className="grid grid-cols-3 gap-4 mb-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">PLZ</label>
-                  <input className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={parsePlzOrt(newPatientData.address2).plz} placeholder="10117" maxLength={5} inputMode="numeric" onChange={(e) => { const v = e.target.value; const { ort } = parsePlzOrt(newPatientData.address2); setNewPatientData({ ...newPatientData, address2: combinePlzOrt(v, ort) }); if (v.length === 5 && !ort && (!newPatientData.country || newPatientData.country === "Deutschland")) lookupPlz(v).then(city => { if (city) { setNewPatientData(d => ({ ...d, address2: combinePlzOrt(v, parsePlzOrt(d.address2).ort || city) })); const ortEl = e.target.closest(".grid")?.querySelector("[data-ort-field]"); flashOrtField(ortEl); } }); }} />
+                  <input className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={parsePlzOrt(newPatientData.address2).plz} placeholder="10117" maxLength={5} inputMode="numeric" onChange={(e) => { const v = e.target.value; const { ort } = parsePlzOrt(newPatientData.address2); setNewPatientData({ ...newPatientData, address2: combinePlzOrt(v, ort) }); if (v.length === 5 && !ort && (!newPatientData.country || newPatientData.country === "Deutschland")) lookupPlz(v).then(city => { if (city) { setNewPatientData(d => ({ ...d, address2: combinePlzOrt(v, parsePlzOrt(d.address2).ort || city) })); const ortEl = e.target.closest(".grid")?.querySelector("[data-ort-field]"); flashOrtField(ortEl); } }); }} />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">Ort</label>
-                  <input data-ort-field className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={parsePlzOrt(newPatientData.address2).ort} placeholder="Berlin" onChange={(e) => { const { plz } = parsePlzOrt(newPatientData.address2); setNewPatientData({ ...newPatientData, address2: combinePlzOrt(plz, e.target.value) }); }} />
+                  <input data-ort-field className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={parsePlzOrt(newPatientData.address2).ort} placeholder="Berlin" onChange={(e) => { const { plz } = parsePlzOrt(newPatientData.address2); setNewPatientData({ ...newPatientData, address2: combinePlzOrt(plz, e.target.value) }); }} />
                 </div>
               </div>
               <div className="mb-3">
                 <label className="block text-xs font-medium text-gray-500 mb-0.5">Land</label>
-                <select className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newPatientData.country} onChange={(e) => setNewPatientData({ ...newPatientData, country: e.target.value })}>
+                <select className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newPatientData.country} onChange={(e) => setNewPatientData({ ...newPatientData, country: e.target.value })}>
                   {PRIORITY_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
                   <option disabled>────────────</option>
                   {OTHER_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -3243,11 +3377,11 @@ export default function EphiaInvoice() {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-0.5">Geburtsdatum</label>
-                    <input type="date" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.geburtsdatum} onChange={(e) => setNewPatientData({ ...newPatientData, geburtsdatum: e.target.value })} />
+                    <input type="date" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.geburtsdatum} onChange={(e) => setNewPatientData({ ...newPatientData, geburtsdatum: e.target.value })} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-0.5">Geschlecht</label>
-                    <select className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newPatientData.geschlecht} onChange={(e) => setNewPatientData({ ...newPatientData, geschlecht: e.target.value })}>
+                    <select className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newPatientData.geschlecht} onChange={(e) => setNewPatientData({ ...newPatientData, geschlecht: e.target.value })}>
                       <option value="">Bitte wählen</option>
                       <option value="w">Weiblich</option>
                       <option value="m">Männlich</option>
@@ -3258,11 +3392,11 @@ export default function EphiaInvoice() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-0.5">Größe (cm)</label>
-                    <input type="number" min="0" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.groesse} placeholder="170" onChange={(e) => setNewPatientData({ ...newPatientData, groesse: e.target.value })} />
+                    <input type="number" min="0" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.groesse} placeholder="170" onChange={(e) => setNewPatientData({ ...newPatientData, groesse: e.target.value })} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-0.5">Gewicht (kg)</label>
-                    <input type="number" min="0" className="w-full border border-gray-200 rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.gewicht} placeholder="70" onChange={(e) => setNewPatientData({ ...newPatientData, gewicht: e.target.value })} />
+                    <input type="number" min="0" className="w-full border border-[#DFE3EB] rounded px-2.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={newPatientData.gewicht} placeholder="70" onChange={(e) => setNewPatientData({ ...newPatientData, gewicht: e.target.value })} />
                   </div>
                 </div>
               </div>
@@ -3556,21 +3690,33 @@ export default function EphiaInvoice() {
                 }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                 </button>
-                <button className="p-2 rounded-lg border border-gray-200 text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={async () => {
+                <button className="p-2 rounded-lg border border-[#DFE3EB] text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={async () => {
                   const patName = [viewingInvoice.patient?.vorname, viewingInvoice.patient?.nachname].filter(Boolean).join("_") || "Patient";
                   const templateName = tpl.title.replace("Aufklärungsbogen — ", "").replace(/\s+/g, "_");
                   const filename = `Aufklaerung_${templateName}_${patName}_${viewingInvoice.invoiceMeta.datum}.pdf`;
-                  const result = await generateMultiPagePDF("consent-form-pdf-target");
-                  if (result) { result.pdf.save(filename); }
+                  try {
+                    const result = await generateMultiPagePDF("consent-form-pdf-target");
+                    if (result) { result.pdf.save(filename); }
+                    else alert("PDF konnte nicht erstellt werden: Dokument nicht gefunden.");
+                  } catch (e) {
+                    console.error("PDF download failed:", e);
+                    alert("PDF konnte nicht erstellt werden: " + (e?.message || e));
+                  }
                 }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                 </button>
-                <button className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition flex items-center gap-1.5" onClick={() => {
+                <button className="p-2 rounded-lg border border-[#DFE3EB] text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition" title="Drucken" onClick={() => {
+                  const patName = [viewingInvoice.patient?.vorname, viewingInvoice.patient?.nachname].filter(Boolean).join("_") || "Patient";
+                  printElement("consent-form-pdf-target", `Aufklaerung_${patName}`);
+                }}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                </button>
+                <button className="px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition flex items-center gap-1.5" onClick={() => {
                   setViewingInvoice(null);
                   const patId = viewingInvoice?._patientDbId || selectedPatient?.id || selectedPatient?._raw?.id;
                   navigate(patId ? `/patients/${patId}` : "/patients");
                 }}>
-                  Speichern &amp; schlie&szlig;en
+                  Speichern & schließen
                 </button>
               </div>
             </div>
@@ -3627,39 +3773,43 @@ export default function EphiaInvoice() {
           <div>
             {/* Toolbar - aligned with document */}
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4 mx-auto" style={{ maxWidth: "210mm" }}>
-              {/* Tab toggle */}
-              {hasTabs ? (
-                <div className="flex gap-1">
-                  <button
-                    className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs rounded-lg border transition ${previewTab === "rechnung" ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 border-gray-200 hover:bg-gray-50"}`}
-                    onClick={() => setPreviewTab("rechnung")}
-                  >
-                    {/* Invoice icon on mobile */}
-                    <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    <span className="hidden sm:inline">Rechnung</span>
+              {/* Left: Bearbeiten + tabs */}
+              <div className="flex items-center gap-2">
+                {!((previewTab === "honorar" || isHvOnly) && hvIsFullySigned) && (
+                  <button className="px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" onClick={() => handleAmend(viewingInvoice, previewTab)}>
+                    Bearbeiten
                   </button>
-                  {viewHasHV && (
+                )}
+                {hasTabs && (
+                  <div className="flex gap-1">
                     <button
-                      className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs rounded-lg border transition ${previewTab === "honorar" ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 border-gray-200 hover:bg-gray-50"}`}
-                      onClick={() => setPreviewTab("honorar")}
+                      className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs rounded-lg border transition ${previewTab === "rechnung" ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 border-[#DFE3EB] hover:bg-gray-50"}`}
+                      onClick={() => setPreviewTab("rechnung")}
                     >
-                      {/* Handshake/contract icon on mobile */}
-                      <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                      <span className="hidden sm:inline">Honorarvereinbarung</span>
+                      <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      <span className="hidden sm:inline">Rechnung</span>
                     </button>
-                  )}
-                  {viewHasTD && (
-                    <button
-                      className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs rounded-lg border transition ${previewTab === "behandlung" ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 border-gray-200 hover:bg-gray-50"}`}
-                      onClick={() => setPreviewTab("behandlung")}
-                    >
-                      {/* Face icon on mobile */}
-                      <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      <span className="hidden sm:inline">Behandlungsdokumentation</span>
-                    </button>
-                  )}
-                </div>
-              ) : <div />}
+                    {viewHasHV && (
+                      <button
+                        className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs rounded-lg border transition ${previewTab === "honorar" ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 border-[#DFE3EB] hover:bg-gray-50"}`}
+                        onClick={() => setPreviewTab("honorar")}
+                      >
+                        <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                        <span className="hidden sm:inline">Honorarvereinbarung</span>
+                      </button>
+                    )}
+                    {viewHasTD && (
+                      <button
+                        className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs rounded-lg border transition ${previewTab === "behandlung" ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 border-[#DFE3EB] hover:bg-gray-50"}`}
+                        onClick={() => setPreviewTab("behandlung")}
+                      >
+                        <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span className="hidden sm:inline">Behandlungsdokumentation</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
               {/* HV status badge */}
               {(previewTab === "honorar" || isHvOnly) && (() => {
                 const hvSigs = (linkedHV || viewingInvoice)?._signatures;
@@ -3671,39 +3821,22 @@ export default function EphiaInvoice() {
               })()}
               {/* Action buttons */}
               <div className="flex gap-1.5">
-                {/* Ändern — hidden when HV is fully signed (legally locked) */}
-                {!((previewTab === "honorar" || isHvOnly) && hvIsFullySigned) && (
-                  <button className="p-2 rounded-lg border border-gray-200 text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition" onClick={() => handleAmend(viewingInvoice, previewTab)} title="Ändern">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                  </button>
-                )}
-                {/* Lock icon — shown when HV is fully signed */}
-                {(previewTab === "honorar" || isHvOnly) && hvIsFullySigned && (
-                  <div className="p-2 rounded-lg border border-gray-200 text-gray-400 cursor-default" title="Dokument ist unterzeichnet und gesperrt">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                  </div>
-                )}
-                {/* Sign button — shown on HV tab only when not fully signed */}
-                {(previewTab === "honorar" || isHvOnly) && !hvIsFullySigned && (
-                  <button className="p-2 rounded-lg border border-gray-200 text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" onClick={() => setShowSignatureModal(true)} title="Unterschreiben">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21h18" /></svg>
-                  </button>
-                )}
-                {/* Upload signed HV — shown on HV tab only when not fully signed */}
-                {(previewTab === "honorar" || isHvOnly) && !hvIsFullySigned && (
-                  <button className="p-2 rounded-lg border border-gray-200 text-green-600 hover:border-green-200 hover:bg-green-50 transition" onClick={() => hvUploadRef.current?.click()} title="Unterschriebene HV hochladen">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                  </button>
-                )}
-                <button className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition" onClick={handlePrintCurrentDoc} title="Drucken">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                </button>
                 {/* Share on mobile, Download on desktop */}
                 <button className="p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition sm:hidden" onClick={handleShareCurrent} title="Teilen">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                 </button>
                 <button className="p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition hidden sm:block" onClick={handleDownloadCurrent} title="PDF herunterladen">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </button>
+                <button className="p-2 rounded-lg border border-[#DFE3EB] text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition" onClick={handlePrintCurrentDoc} title="Drucken">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                </button>
+                <button className="px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" onClick={() => {
+                  setViewingInvoice(null);
+                  const patId = viewingInvoice?._patientDbId || selectedPatient?.id || selectedPatient?._raw?.id;
+                  navigate(patId ? `/patients/${patId}` : "/patients");
+                }}>
+                  Speichern & schließen
                 </button>
               </div>
             </div>
@@ -3717,7 +3850,7 @@ export default function EphiaInvoice() {
             )}
             {/* Single document render — desktop shows full size, mobile scales it down */}
             <div className="hidden lg:flex flex-col items-center gap-6">
-              <div className="shadow-lg border border-gray-200" style={{ width: "210mm" }}>
+              <div className="shadow-lg border border-[#DFE3EB]" style={{ width: "210mm" }}>
                 {(previewTab === "behandlung" || isStandaloneTD) ? (
                   <TreatmentDocPreview
                     practice={viewPractice}
@@ -3752,7 +3885,7 @@ export default function EphiaInvoice() {
               {previewTab === "rechnung" && !isStandaloneTD && viewingInvoice.attachTreatmentPdf && viewingInvoice.treatmentDoc && (
                 <div>
                   <p className="text-xs text-gray-400 text-center mb-2">Seite 2 — Behandlungsdokumentation</p>
-                  <div className="shadow-lg border border-gray-200" style={{ width: "210mm" }}>
+                  <div className="shadow-lg border border-[#DFE3EB]" style={{ width: "210mm" }}>
                     <TreatmentDocPreview
                       practice={viewPractice}
                       patient={viewingInvoice.patient}
@@ -3766,7 +3899,7 @@ export default function EphiaInvoice() {
             </div>
             <MobileScaledPreview className="lg:hidden" a4Width={a4Px}>
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                <div className="shadow-lg border border-gray-200" style={{ width: a4Px }}>
+                <div className="shadow-lg border border-[#DFE3EB]" style={{ width: a4Px }}>
                   {(previewTab === "behandlung" || isStandaloneTD) ? (
                     <TreatmentDocPreview
                       practice={viewPractice}
@@ -3801,7 +3934,7 @@ export default function EphiaInvoice() {
                 {previewTab === "rechnung" && !isStandaloneTD && viewingInvoice.attachTreatmentPdf && viewingInvoice.treatmentDoc && (
                   <div>
                     <p style={{ fontSize: "11px", color: "#9ca3af", textAlign: "center", marginBottom: 8 }}>Seite 2 — Behandlungsdokumentation</p>
-                    <div className="shadow-lg border border-gray-200" style={{ width: a4Px }}>
+                    <div className="shadow-lg border border-[#DFE3EB]" style={{ width: a4Px }}>
                       <TreatmentDocPreview
                         practice={viewPractice}
                         patient={viewingInvoice.patient}

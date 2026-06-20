@@ -5,7 +5,7 @@ import React from "react";
 export default function ImpressumPage({ onBack }) {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      <div className="max-w-3xl mx-auto bg-white rounded-lg shadow border border-gray-200 p-8">
+      <div className="max-w-3xl mx-auto bg-white rounded-lg shadow border border-[#DFE3EB] p-8">
         {onBack && (
           <button onClick={onBack} className="mb-6 text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
             &larr; Zurück

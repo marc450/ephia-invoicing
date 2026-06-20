@@ -44,7 +44,7 @@ export default function BehandlungDetailPanel({
   const pencilIcon = (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
   );
-  const editBtnCls = "p-1.5 rounded border border-gray-200 text-gray-400 hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50 transition";
+  const editBtnCls = "p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50 transition";
 
   const saveInlineField = (field, value) => {
     const updatedTd = { ...td };
@@ -92,7 +92,7 @@ export default function BehandlungDetailPanel({
           <div className="flex-shrink-0">
             <div className="relative">
               {markerCount > 0 ? (
-                <div className="relative border border-gray-200 rounded-lg overflow-hidden select-none" style={{ width: 500, maxWidth: "100%", aspectRatio: "1", background: "#fafafa" }}>
+                <div className="relative border border-[#DFE3EB] rounded-lg overflow-hidden select-none" style={{ width: 500, maxWidth: "100%", aspectRatio: "1", background: "#fafafa" }}>
                   <img src={td.facePhoto || FACE_IMAGE_B64} alt="Gesicht" className="w-full h-full object-contain pointer-events-none" draggable={false} />
                   {(td.markers || []).map((m, idx) => (
                     <div key={idx} className="absolute flex items-center justify-center" style={{ left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -50%)", zIndex: 10 }}>
@@ -101,11 +101,11 @@ export default function BehandlungDetailPanel({
                   ))}
                 </div>
               ) : (
-                <div className="flex items-center justify-center border border-gray-200 rounded-lg" style={{ width: 500, maxWidth: "100%", aspectRatio: "1", background: "#fafafa" }}>
+                <div className="flex items-center justify-center border border-[#DFE3EB] rounded-lg" style={{ width: 500, maxWidth: "100%", aspectRatio: "1", background: "#fafafa" }}>
                   <p className="text-xs text-gray-400">Keine Injektionspunkte dokumentiert</p>
                 </div>
               )}
-              <button className="absolute bottom-3 right-3 p-1.5 bg-white rounded border border-gray-200 shadow-sm text-gray-400 hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50 transition" title="Injektionspunkte bearbeiten" onClick={() => { setInlineTempMarkers((td.markers || []).map((m, i) => ({ id: Date.now() + i, ...m }))); setEditFace(true); }}>
+              <button className="absolute bottom-3 right-3 p-1.5 bg-white rounded border border-[#DFE3EB] shadow-sm text-gray-400 hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50 transition" title="Injektionspunkte bearbeiten" onClick={() => { setInlineTempMarkers((td.markers || []).map((m, i) => ({ id: Date.now() + i, ...m }))); setEditFace(true); }}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
               </button>
             </div>
@@ -126,9 +126,9 @@ export default function BehandlungDetailPanel({
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <input type="date" className="border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" style={{ WebkitAppearance: "none", appearance: "none", colorScheme: "light" }} value={inlineTempDate} onChange={(e) => setInlineTempDate(e.target.value)} />
+                  <input type="date" className="border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" style={{ WebkitAppearance: "none", appearance: "none", colorScheme: "light" }} value={inlineTempDate} onChange={(e) => setInlineTempDate(e.target.value)} />
                   <button className="px-2 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition" onClick={() => { saveInlineField("date", inlineTempDate); setEditDate(false); }}>{"\u2713"}</button>
-                  <button className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={() => setEditDate(false)}>{"\u2715"}</button>
+                  <button className="px-2 py-1 text-xs rounded border border-[#DFE3EB] text-gray-500 hover:bg-gray-50 transition" onClick={() => setEditDate(false)}>{"\u2715"}</button>
                 </div>
               )}
             </div>
@@ -144,12 +144,12 @@ export default function BehandlungDetailPanel({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 mt-0.5">
-                    <input className="border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 w-36" value={inlineTempPraep} placeholder="z.B. Bocouture" onChange={(e) => setInlineTempPraep(e.target.value)} />
-                    <select className="border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={inlineTempEinheit} onChange={(e) => setInlineTempEinheit(e.target.value)}>
+                    <input className="border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 w-36" value={inlineTempPraep} placeholder="z.B. Bocouture" onChange={(e) => setInlineTempPraep(e.target.value)} />
+                    <select className="border border-[#DFE3EB] rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={inlineTempEinheit} onChange={(e) => setInlineTempEinheit(e.target.value)}>
                       <option value="ml">ml</option><option value="SE">SE</option><option value="IE">IE</option>
                     </select>
                     <button className="px-2 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition" onClick={() => { saveInlineField("praeparat", { praep: inlineTempPraep, einh: inlineTempEinheit }); setEditPraep(false); }}>{"\u2713"}</button>
-                    <button className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={() => setEditPraep(false)}>{"\u2715"}</button>
+                    <button className="px-2 py-1 text-xs rounded border border-[#DFE3EB] text-gray-500 hover:bg-gray-50 transition" onClick={() => setEditPraep(false)}>{"\u2715"}</button>
                   </div>
                 )}
               </div>
@@ -192,10 +192,10 @@ export default function BehandlungDetailPanel({
                   </div>
                 ) : (
                   <div className="mt-0.5">
-                    <textarea className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" rows={3} value={inlineTempNotes} onChange={(e) => setInlineTempNotes(e.target.value)} />
+                    <textarea className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" rows={3} value={inlineTempNotes} onChange={(e) => setInlineTempNotes(e.target.value)} />
                     <div className="flex gap-2 mt-1">
                       <button className="px-2 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition" onClick={() => { saveInlineField("notes", inlineTempNotes); setEditNotes(false); }}>Speichern</button>
-                      <button className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={() => setEditNotes(false)}>Abbrechen</button>
+                      <button className="px-2 py-1 text-xs rounded border border-[#DFE3EB] text-gray-500 hover:bg-gray-50 transition" onClick={() => setEditNotes(false)}>Abbrechen</button>
                     </div>
                   </div>
                 )}
@@ -213,13 +213,13 @@ export default function BehandlungDetailPanel({
                 </button>
               )}
               <button
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-gray-200 text-gray-600 hover:bg-green-50 hover:border-green-200 hover:text-green-700 transition"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-[#DFE3EB] text-gray-600 hover:bg-green-50 hover:border-green-200 hover:text-green-700 transition"
                 onClick={() => downloadTreatmentDoc(inv)}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 PDF herunterladen
               </button>
-              <button className="px-3 py-1.5 text-xs rounded border border-gray-200 text-red-600 hover:bg-red-50 hover:border-red-200 transition" onClick={() => setConfirmDeleteTreatment(inv)}>Behandlung l&ouml;schen</button>
+              <button className="px-3 py-1.5 text-xs rounded border border-[#DFE3EB] text-red-600 hover:bg-red-50 hover:border-red-200 transition" onClick={() => setConfirmDeleteTreatment(inv)}>Behandlung l&ouml;schen</button>
             </div>
           </div>
         </div>
@@ -266,7 +266,7 @@ export default function BehandlungDetailPanel({
                       <label className="block text-xs font-medium text-gray-500 mb-0.5">Rechnungsnummer</label>
                       <input
                         type="text"
-                        className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                         value={quickInvoiceNummer}
                         onChange={(e) => setQuickInvoiceNummer(e.target.value)}
                       />
@@ -277,7 +277,7 @@ export default function BehandlungDetailPanel({
                       <input
                         type="text"
                         inputMode="decimal"
-                        className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                         placeholder="z.B. 4,50"
                         value={quickInvoicePreisStr}
                         onChange={(e) => setQuickInvoicePreisStr(e.target.value)}
@@ -290,7 +290,7 @@ export default function BehandlungDetailPanel({
                       <input
                         type="text"
                         inputMode="decimal"
-                        className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                         value={quickInvoiceWunschStr}
                         placeholder={qPreisProMl > 0 ? defaultStr : "z.B. 350"}
                         onChange={(e) => setQuickInvoiceWunschStr(e.target.value)}
@@ -303,7 +303,7 @@ export default function BehandlungDetailPanel({
                             {effectiveMax > 3.5 && <span className="ml-1 text-gray-400 text-xs">&sect;2 GO&Auml;</span>}
                           </div>
                           {effectiveMax > 3.5 && (
-                            <div className="mt-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs text-gray-500">
+                            <div className="mt-1.5 px-2.5 py-1.5 bg-gray-50 border border-[#DFE3EB] rounded text-xs text-gray-500">
                               &Uuml;ber 3,5-fach: Eine Honorarvereinbarung gem&auml;&szlig; &sect;2 GO&Auml; wird zus&auml;tzlich erstellt.
                             </div>
                           )}
@@ -331,7 +331,7 @@ export default function BehandlungDetailPanel({
                 </div>
 
                 <div className="px-5 pb-5 pt-2 flex gap-2">
-                  <button className="flex-1 px-3 py-2 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition" onClick={() => setQuickInvoiceOpen(false)}>Abbrechen</button>
+                  <button className="flex-1 px-3 py-2 text-xs rounded border border-[#DFE3EB] text-gray-600 hover:bg-gray-50 transition" onClick={() => setQuickInvoiceOpen(false)}>Abbrechen</button>
                   <button
                     className={`flex-1 px-3 py-2 text-xs rounded text-white transition flex items-center justify-center gap-1.5 ${quickInvoiceSaving ? "bg-blue-400 cursor-not-allowed" : isValid ? "bg-blue-500 hover:bg-blue-600" : "bg-gray-300 cursor-not-allowed"}`}
                     disabled={!isValid || quickInvoiceSaving}
@@ -411,7 +411,7 @@ export default function BehandlungDetailPanel({
               <p className="text-xs text-amber-500 mb-3">Die eingegebenen Mengen werden automatisch als Gesamtmenge des Pr&auml;parats &uuml;bernommen.</p>
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 overflow-y-auto">
                 <div className="flex-shrink-0">
-                  <div className="relative border border-gray-200 rounded-lg overflow-hidden select-none" style={{ width: faceSzFE, height: faceSzFE, cursor: "crosshair", background: "#fafafa" }}>
+                  <div className="relative border border-[#DFE3EB] rounded-lg overflow-hidden select-none" style={{ width: faceSzFE, height: faceSzFE, cursor: "crosshair", background: "#fafafa" }}>
                     <div ref={faceModalRef} onClick={handleFaceClickFE} className="relative w-full h-full">
                       <img src={td.facePhoto || FACE_IMAGE_B64} alt="Gesicht" className="w-full h-full object-contain pointer-events-none" draggable={false} />
                       {inlineTempMarkers.map((m, idx) => (
@@ -427,9 +427,9 @@ export default function BehandlungDetailPanel({
                     {inlineTempMarkers.map((m, idx) => (
                       <div key={m.id} className="flex items-center gap-1.5">
                         <span className="flex items-center justify-center rounded-full bg-red-500 text-white font-bold flex-shrink-0" style={{ width: 18, height: 18, fontSize: 9 }}>{idx + 1}</span>
-                        <input type="text" inputMode="text" className="w-20 px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" value={m.amount} placeholder={idx % 2 === 0 ? "z.B. 1,90" : "z.B. 2x3"} onChange={(e) => setInlineTempMarkers(inlineTempMarkers.map((mk) => mk.id === m.id ? { ...mk, amount: e.target.value } : mk))} />
+                        <input type="text" inputMode="text" className="w-20 px-2 py-1 text-sm border border-[#DFE3EB] rounded focus:outline-none focus:ring-1 focus:ring-blue-400" value={m.amount} placeholder={idx % 2 === 0 ? "z.B. 1,90" : "z.B. 2x3"} onChange={(e) => setInlineTempMarkers(inlineTempMarkers.map((mk) => mk.id === m.id ? { ...mk, amount: e.target.value } : mk))} />
                         <span className="text-xs text-gray-400">{inlineTempEinheit}</span>
-                        <button className="p-1 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" onClick={() => setInlineTempMarkers(inlineTempMarkers.filter((mk) => mk.id !== m.id))} title="L&ouml;schen">
+                        <button className="p-1 rounded border border-[#DFE3EB] text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" onClick={() => setInlineTempMarkers(inlineTempMarkers.filter((mk) => mk.id !== m.id))} title="L&ouml;schen">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>

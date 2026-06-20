@@ -90,7 +90,7 @@ export default function HonorarvereinbarungPreview({ practice, patient: rawPatie
           {tableItems.map((it, i) => (
             <tr key={i}>
               <td style={S.tdFirst}>{it.goaCode || (it.isPraeparat ? "—" : "")}</td>
-              <td style={S.td}>{it.isPraeparat ? `${it.quantity || ""}${it.einheit || "ml"} ${it.praeparatName || it.description} (Präparat, ${fmt(it.unitPrice || 0)} €/${it.einheit || "ml"})` : it.description}</td>
+              <td style={S.td}>{it.isPraeparat ? (it.ganzeAmpulle ? `1 Ampulle ${it.praeparatName || it.description} (Präparat)` : `${it.quantity || ""}${it.einheit || "ml"} ${it.praeparatName || it.description} (Präparat, ${fmt(it.unitPrice || 0)} €/${it.einheit || "ml"})`) : it.description}</td>
               <td style={S.tdR}>{it.punkte != null ? it.punkte : ""}</td>
               <td style={S.tdR}>{it.steigerung != null ? (Math.round(it.steigerung * 100) / 100).toFixed(2).replace(".", ",") : ""}</td>
               <td style={S.tdRLast}>{fmt(it.betrag)}</td>
@@ -165,25 +165,22 @@ export default function HonorarvereinbarungPreview({ practice, patient: rawPatie
       <div style={{ marginTop: "30px", marginBottom: "60px" }}>
         <span>Ort, Datum: {invoiceMeta.ort ? `${invoiceMeta.ort}, ${fmtDate(invoiceMeta.datum)}` : ""}</span>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-around", marginTop: "30px" }}>
-        <div style={{ textAlign: "center", minWidth: "160px" }}>
-          {signatures?.patient && (
+      <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-end", marginTop: "30px" }}>
+        <div
+          style={{ textAlign: "center", minWidth: "160px", ...(onSignatureClick && !signatures?.patient ? { cursor: "pointer", borderRadius: "6px", padding: "8px", border: "2px dashed #93c5fd", background: "#eff6ff" } : {}) }}
+          onClick={onSignatureClick && !signatures?.patient ? onSignatureClick : undefined}
+          title={onSignatureClick && !signatures?.patient ? "Klicken zum Unterschreiben" : undefined}
+        >
+          {signatures?.patient ? (
             <img src={signatures.patient} alt="Patient:in" style={{ height: "55px", display: "block", margin: "0 auto 6px" }} />
-          )}
-          <div
-            style={{ textAlign: "center", minWidth: "160px", ...(onSignatureClick && !signatures?.patient ? { cursor: "pointer", borderRadius: "6px", padding: "8px", border: "2px dashed #93c5fd", background: "#eff6ff" } : {}) }}
-            onClick={onSignatureClick && !signatures?.patient ? onSignatureClick : undefined}
-            title={onSignatureClick && !signatures?.patient ? "Klicken zum Unterschreiben" : undefined}
-          >
-            {!signatures?.patient && onSignatureClick && (
-              <div style={{ height: "55px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "6px" }}>
-                <span style={{ fontSize: "10px", color: "#3b82f6" }}>Hier unterschreiben</span>
-              </div>
-            )}
-            <div style={{ borderTop: "1.5px solid #222", paddingTop: "6px", fontSize: "10px" }}>
-              <div style={{ fontWeight: "600" }}>{patient.vorname} {patient.nachname}</div>
-              <div style={{ fontSize: "9px", color: "#888" }}>Patient:in</div>
+          ) : onSignatureClick ? (
+            <div style={{ height: "55px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "6px" }}>
+              <span style={{ fontSize: "10px", color: "#3b82f6" }}>Hier unterschreiben</span>
             </div>
+          ) : null}
+          <div style={{ borderTop: "1.5px solid #222", paddingTop: "6px", fontSize: "10px" }}>
+            <div style={{ fontWeight: "600" }}>{patient.vorname} {patient.nachname}</div>
+            <div style={{ fontSize: "9px", color: "#888" }}>Patient:in</div>
           </div>
         </div>
         <div

@@ -137,7 +137,7 @@ export default function TreatmentMap({ markers, setMarkers, einheit, readOnly, n
   if (readOnly) {
     return (
       <div className="flex flex-col sm:flex-row gap-4" style={{ alignItems: "flex-start" }}>
-        <div className="relative border border-gray-200 rounded-lg overflow-hidden select-none flex-shrink-0" style={{ width: 250, height: 250, background: "#fafafa" }}>
+        <div className="relative border border-[#DFE3EB] rounded-lg overflow-hidden select-none flex-shrink-0" style={{ width: 250, height: 250, background: "#fafafa" }}>
           <img src={faceImg} alt="Gesicht" className="w-full h-full object-contain pointer-events-none" draggable={false} />
           {markers.map((m, idx) => (
             <div key={m.id} className="absolute flex items-center justify-center" style={{ left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -50%)", zIndex: 10 }}>
@@ -152,7 +152,7 @@ export default function TreatmentMap({ markers, setMarkers, einheit, readOnly, n
                 {markers.map((m, idx) => (
                   <div key={m.id} className="flex items-center gap-2">
                     <span className="flex items-center justify-center rounded-full bg-red-500 text-white font-bold flex-shrink-0" style={{ width: 20, height: 20, fontSize: 10 }}>{idx + 1}</span>
-                    <input type="text" inputMode="decimal" className="w-20 px-2 py-1 text-sm border border-gray-200 rounded bg-gray-50" value={m.amount} readOnly />
+                    <input type="text" inputMode="decimal" className="w-20 px-2 py-1 text-sm border border-[#DFE3EB] rounded bg-gray-50" value={m.amount} readOnly />
                     <span className="text-xs text-gray-400">{einheit}</span>
                   </div>
                 ))}
@@ -180,7 +180,7 @@ export default function TreatmentMap({ markers, setMarkers, einheit, readOnly, n
           const totalStr = totalUnits % 1 === 0 ? totalUnits.toString() : totalUnits.toFixed(2).replace(/0+$/, "").replace(".", ",");
           return (
           <div>
-            <div className="relative border border-gray-200 rounded-lg overflow-hidden select-none cursor-pointer hover:opacity-90 transition" style={{ width: 200, height: 200, background: "#fafafa" }} onClick={() => setModalOpen(true)} title="Klicken zum Bearbeiten">
+            <div className="relative border border-[#DFE3EB] rounded-lg overflow-hidden select-none cursor-pointer hover:opacity-90 transition" style={{ width: 200, height: 200, background: "#fafafa" }} onClick={() => setModalOpen(true)} title="Klicken zum Bearbeiten">
               <img src={faceImg} alt="Gesicht" className="w-full h-full object-contain pointer-events-none" draggable={false} />
               {markers.map((m, idx) => (
                 <div key={m.id} className="absolute flex items-center justify-center" style={{ left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -50%)", zIndex: 10 }}>
@@ -241,7 +241,7 @@ export default function TreatmentMap({ markers, setMarkers, einheit, readOnly, n
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
                 <div className="flex-shrink-0">
                   <div
-                    className="relative border border-gray-200 rounded-lg overflow-hidden select-none"
+                    className="relative border border-[#DFE3EB] rounded-lg overflow-hidden select-none"
                     style={{ width: faceSize, height: faceSize, cursor: "crosshair", background: "#fafafa", touchAction: "none" }}
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
@@ -275,7 +275,7 @@ export default function TreatmentMap({ markers, setMarkers, einheit, readOnly, n
                     <div className="mt-2">
                       {facePhoto ? (
                         <button
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition"
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 border border-[#DFE3EB] rounded-lg transition"
                           onClick={() => photoInputRef.current?.click()}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" /></svg>
@@ -298,9 +298,9 @@ export default function TreatmentMap({ markers, setMarkers, einheit, readOnly, n
                     {markers.map((m, idx) => (
                       <div key={m.id} className="flex items-center gap-1.5">
                         <span className="flex items-center justify-center rounded-full bg-red-500 text-white font-bold flex-shrink-0" style={{ width: 18, height: 18, fontSize: 9 }}>{idx + 1}</span>
-                        <input type="text" inputMode="text" className="w-20 px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" value={m.amount} placeholder={idx % 2 === 0 ? "z.B. 1,90" : "z.B. 2x3"} onChange={(e) => updateAmount(m.id, e.target.value)} />
+                        <input type="text" inputMode="text" className="w-20 px-2 py-1 text-sm border border-[#DFE3EB] rounded focus:outline-none focus:ring-1 focus:ring-blue-400" value={m.amount} placeholder={idx % 2 === 0 ? "z.B. 1,90" : "z.B. 2x3"} onChange={(e) => updateAmount(m.id, e.target.value)} />
                         <span className="text-xs text-gray-400">{einheit}</span>
-                        <button className="p-1 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition flex-shrink-0" onClick={() => removeMarker(m.id)} title="Löschen">
+                        <button className="p-1 rounded border border-[#DFE3EB] text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition flex-shrink-0" onClick={() => removeMarker(m.id)} title="Löschen">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>

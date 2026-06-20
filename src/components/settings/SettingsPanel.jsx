@@ -191,7 +191,7 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
     setImportLoading(false);
   };
 
-  const inputCls2 = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition";
+  const inputCls2 = "w-full border border-[#DFE3EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition";
 
   const f = (label, key, ph, required = true) => (
     <div>
@@ -208,7 +208,7 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
   if (!show) return null;
 
   const sectionHeading = (text) => (
-    <p className="text-[11px] font-semibold text-gray-800 uppercase tracking-wider mb-4 pb-2 border-b border-gray-200">{text}</p>
+    <p className="text-[11px] font-semibold text-gray-800 uppercase tracking-wider mb-4 pb-2 border-b border-[#DFE3EB]">{text}</p>
   );
 
   return (
@@ -310,7 +310,7 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
           </div>
 
           {/* ── Gespeicherte Präparate ── */}
-          <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
+          <div className="flex items-center gap-2 mb-4 pb-2 border-b border-[#DFE3EB]">
             <p className="text-[11px] font-semibold text-gray-800 uppercase tracking-wider">Gespeicherte Präparate</p>
             <InfoTooltip>{"Den Preis pro Einheit berechnest Du, indem Du den Einkaufspreis der Phiole durch die Anzahl der enthaltenen Einheiten teilst.\n\nBeispiel: Kostet eine Phiole mit 100 SE insgesamt 50 €, liegt der Preis pro SE bei 0,50 €."}</InfoTooltip>
           </div>
@@ -369,7 +369,7 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
                   <p className={`text-xs mt-2 ${pwMsg.type === "error" ? "text-red-500" : "text-green-600"}`}>{pwMsg.text}</p>
                 )}
                 <button
-                  className="mt-3 px-4 py-2 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  className="mt-3 px-4 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition"
                   disabled={pwLoading || !pwCurrent || !pwNew || pwNew !== pwConfirm}
                   onClick={handleChangePassword}
                 >
@@ -388,7 +388,7 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
                   <p className="text-xs font-medium text-gray-600 mb-1">Export</p>
                   <p className="text-[10px] text-gray-400 mb-3">Alle Daten als JSON-Datei herunterladen.</p>
                   <button
-                    className="px-3 py-2 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
+                    className="px-3 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
                     disabled={exportLoading}
                     onClick={handleExportData}
                   >
@@ -401,7 +401,7 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
                   <p className="text-[10px] text-gray-400 mb-3">Daten aus Backup wiederherstellen. Bestehende Daten werden ersetzt.</p>
                   <input ref={importFileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportData} />
                   <button
-                    className="px-3 py-2 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
+                    className="px-3 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
                     disabled={importLoading}
                     onClick={() => importFileRef.current?.click()}
                   >
@@ -417,7 +417,7 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
         {/* Sticky footer */}
         <div className={`flex-shrink-0 px-5 sm:px-8 py-4 border-t border-gray-100 bg-gray-50 rounded-b-xl ${isFirstTime ? "flex justify-end" : "flex justify-between"}`}>
           {!isFirstTime && (
-            <button className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-white transition" onClick={() => setShow(false)}>
+            <button className="px-4 py-2 text-sm rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-white transition" onClick={() => setShow(false)}>
               Abbrechen
             </button>
           )}

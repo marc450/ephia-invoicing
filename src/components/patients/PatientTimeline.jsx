@@ -99,8 +99,8 @@ export default function PatientTimeline({
       <div className="px-5 py-4 border-b border-gray-100">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Historie</h3>
         <div className="flex flex-col gap-2">
-          <input type="text" placeholder="Durchsuchen..." className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineSearch} onChange={e => setTimelineSearch(e.target.value)} />
-          <select className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineFilter} onChange={e => setTimelineFilter(e.target.value)}>
+          <input type="text" placeholder="Durchsuchen..." className="w-full border border-[#DFE3EB] rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineSearch} onChange={e => setTimelineSearch(e.target.value)} />
+          <select className="w-full border border-[#DFE3EB] rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400" value={timelineFilter} onChange={e => setTimelineFilter(e.target.value)}>
             <option value="alle">Alle</option>
             <option value="aufklaerung">Aufkl&auml;rung</option>
             <option value="hv">HV</option>

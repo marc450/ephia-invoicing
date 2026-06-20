@@ -37,7 +37,7 @@ export default function BehandlungAddPanel({
               <label className="block text-xs font-medium text-gray-500 mb-0.5">Datum *</label>
               <input
                 type="date"
-                className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
                 style={{ WebkitAppearance: "none", appearance: "none", colorScheme: "light" }}
                 value={newTreatmentDate}
                 onChange={(e) => setNewTreatmentDate(e.target.value)}
@@ -46,7 +46,7 @@ export default function BehandlungAddPanel({
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-0.5">Rechnung verkn&uuml;pfen</label>
               <select
-                className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
                 value={newTreatmentInvoiceId || ""}
                 onChange={(e) => setNewTreatmentInvoiceId(e.target.value || null)}
               >
@@ -66,7 +66,7 @@ export default function BehandlungAddPanel({
 
           <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium mb-1.5">Notizen</p>
           <textarea
-            className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
             rows={4}
             placeholder="Optionale Notizen zur Behandlung\u2026"
             value={newTreatmentNotes}
@@ -86,7 +86,7 @@ export default function BehandlungAddPanel({
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">Name</label>
                   <PraeparatAutocomplete
-                    className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                     value={newTreatmentPraeparat}
                     placeholder="z.B. Bocouture"
                     suggestions={(practice.praeparate || []).filter(p => p.name)}
@@ -106,7 +106,7 @@ export default function BehandlungAddPanel({
                     </span>
                   </label>
                   <input
-                    className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                     value={newTreatmentMarkers.length > 0 ? fmtUnits(newTreatmentMarkers) : newTreatmentAmount}
                     placeholder="z.B. 8,4"
                     readOnly={newTreatmentMarkers.length > 0}
@@ -116,7 +116,7 @@ export default function BehandlungAddPanel({
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-0.5">Einheit</label>
-                  <select className="w-full border border-gray-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newTreatmentEinheit} onChange={(e) => setNewTreatmentEinheit(e.target.value)}>
+                  <select className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white" value={newTreatmentEinheit} onChange={(e) => setNewTreatmentEinheit(e.target.value)}>
                     <option value="ml">ml</option>
                     <option value="SE">SE</option>
                     <option value="IE">IE</option>

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { fmtPhone, parsePlzOrt, combinePlzOrt, lookupPlz } from "../../utils/helpers";
 import { PRIORITY_COUNTRIES, OTHER_COUNTRIES } from "../../constants";
 
-const inputCls = "border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400";
+const inputCls = "border border-[#DFE3EB] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400";
 
 function PencilIcon({ onClick }) {
   return (
@@ -53,7 +53,7 @@ export default function PatientLeftSidebar({
       <div className="px-5 py-5 border-b border-gray-100">
         <div className="flex flex-col items-center text-center">
           <button
-            className="rounded-full overflow-hidden border-2 border-gray-200 hover:border-blue-300 transition mb-3"
+            className="rounded-full overflow-hidden border-2 border-[#DFE3EB] hover:border-blue-300 transition mb-3"
             style={{ width: 72, height: 72 }}
             onClick={() => profilePhotoInputRef.current?.click()}
             title="Foto hochladen"
@@ -75,7 +75,7 @@ export default function PatientLeftSidebar({
               <input className={inputCls + " w-full"} value={nameData.nachname} placeholder="Nachname" onChange={(e) => setNameData({ ...nameData, nachname: e.target.value })} />
               <div className="flex gap-2 pt-1 justify-center">
                 <button className="px-3 py-1.5 text-xs rounded-md bg-blue-500 text-white hover:bg-blue-600 transition" onClick={saveName}>Speichern</button>
-                <button className="px-3 py-1.5 text-xs rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={cancel}>Abbrechen</button>
+                <button className="px-3 py-1.5 text-xs rounded-md border border-[#DFE3EB] text-gray-500 hover:bg-gray-50 transition" onClick={cancel}>Abbrechen</button>
               </div>
             </div>
           ) : (
@@ -149,7 +149,7 @@ export default function PatientLeftSidebar({
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button className="px-3 py-1.5 text-xs rounded-md bg-blue-500 text-white hover:bg-blue-600 transition" onClick={saveAdresse}>Speichern</button>
-                  <button className="px-3 py-1.5 text-xs rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={cancel}>Abbrechen</button>
+                  <button className="px-3 py-1.5 text-xs rounded-md border border-[#DFE3EB] text-gray-500 hover:bg-gray-50 transition" onClick={cancel}>Abbrechen</button>
                 </div>
               </div>
             ) : (
@@ -220,7 +220,7 @@ export default function PatientLeftSidebar({
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button className="px-3 py-1.5 text-xs rounded-md bg-blue-500 text-white hover:bg-blue-600 transition" onClick={saveMedizin}>Speichern</button>
-                  <button className="px-3 py-1.5 text-xs rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 transition" onClick={cancel}>Abbrechen</button>
+                  <button className="px-3 py-1.5 text-xs rounded-md border border-[#DFE3EB] text-gray-500 hover:bg-gray-50 transition" onClick={cancel}>Abbrechen</button>
                 </div>
               </div>
             ) : (

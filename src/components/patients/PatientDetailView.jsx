@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { fmtDate } from "../../utils/helpers";
 import { CONSENT_TEMPLATES } from "../consent/consentTemplates";
 import { FACE_IMAGE_B64 } from "../../constants";
@@ -81,6 +81,28 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
 
   // Anamnese data
   const anamnese = (rawData.anamnese || []).slice().sort((a, b) => (a.addedAt || "").localeCompare(b.addedAt || ""));
+
+  // ── Retroactive demographic sync from existing consent forms ──
+  const retroSyncDoneRef = useRef(false);
+  useEffect(() => {
+    if (retroSyncDoneRef.current || !onUpdatePatient) return;
+    const missingFields = ["geschlecht", "geburtsdatum", "groesse", "gewicht"].filter(f => !rawData[f]);
+    if (missingFields.length === 0) return;
+    const consentForms = matchingInvoices.filter(inv => inv._consentForm && inv.consentData?.answers);
+    if (consentForms.length === 0) return;
+    // Use the most recent consent form with demographic data
+    const sorted = [...consentForms].sort((a, b) => (b._createdAt || b.savedAt || "").localeCompare(a._createdAt || a.savedAt || ""));
+    const demoFields = {};
+    for (const form of sorted) {
+      const ans = form.consentData.answers;
+      for (const f of missingFields) {
+        if (ans[f] && !demoFields[f]) demoFields[f] = ans[f];
+      }
+    }
+    if (Object.keys(demoFields).length === 0) return;
+    retroSyncDoneRef.current = true;
+    onUpdatePatient({ ...rawData, ...demoFields });
+  }, [patientDbId]); // eslint-disable-line
 
   // ── Helper functions (shared across components) ──
   const hasConsentRisks = (inv) => {
@@ -186,7 +208,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
       {/* Three-column layout — separate cards */}
       <div className="flex flex-col lg:flex-row gap-5 lg:gap-6 items-start">
         {/* ═══════════════════ LEFT SIDEBAR ═══════════════════ */}
-        <div className="w-full lg:w-auto bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex-shrink-0">
+        <div className="w-full lg:w-auto bg-white rounded-lg border border-[#DFE3EB] shadow-sm overflow-hidden flex-shrink-0">
           <PatientLeftSidebar
             patient={patient} rawData={rawData} email={email}
             latestFacePhoto={latestFacePhoto} profilePhotoInputRef={profilePhotoInputRef} handleProfilePhotoUpload={handleProfilePhotoUpload}
@@ -201,7 +223,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
         {/* ═══════════════════ CENTER: Behandlungen ═══════════════════ */}
         <div className="w-full lg:flex-1 min-w-0">
           {/* Data Highlights */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-5 lg:mb-6">
+          <div className="bg-white rounded-lg border border-[#DFE3EB] shadow-sm mb-5 lg:mb-6">
             <div className="grid grid-cols-3 gap-6 px-6 py-5">
               <div>
                 <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Erstellt am</div>
@@ -219,8 +241,8 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
           </div>
 
           {/* Behandlungen or Detail view */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto">
-            {centerView === "timeline" && (
+          <div className="bg-white rounded-lg border border-[#DFE3EB] shadow-sm overflow-hidden lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto">
+            {(centerView === "timeline" || centerView === "behandlungen_add") && (
               <PatientBehandlungenSidebar
                 patientBeh={patientBeh} matchingInvoices={matchingInvoices} patientDbId={patientDbId} patient={patient}
                 newBehandlungOpen={newBehandlungOpen} setNewBehandlungOpen={setNewBehandlungOpen}
@@ -253,7 +275,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
         </div>
 
         {/* ═══════════════════ RIGHT SIDEBAR: Historie ═══════════════════ */}
-        <div className="w-full lg:w-96 xl:w-[28rem] bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex-shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+        <div className="w-full lg:w-96 xl:w-[28rem] bg-white rounded-lg border border-[#DFE3EB] shadow-sm overflow-hidden flex-shrink-0 lg:sticky lg:top-0 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
           <PatientTimeline
             patient={patient} patientDbId={patientDbId}
             matchingInvoices={matchingInvoices} patientBeh={patientBeh}
@@ -304,7 +326,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
             <h3 className="text-sm font-semibold text-gray-800 mb-2">Behandlung l&ouml;schen?</h3>
             <p className="text-xs text-gray-500 mb-4">Diese Behandlungsdokumentation wird unwiderruflich gel&ouml;scht. Diese Aktion kann nicht r&uuml;ckg&auml;ngig gemacht werden.</p>
             <div className="flex gap-2 justify-end">
-              <button className="px-3 py-1.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeleteTreatment(null)}>Abbrechen</button>
+              <button className="px-3 py-1.5 text-xs rounded border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeleteTreatment(null)}>Abbrechen</button>
               <button className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700" onClick={() => {
                 const inv = confirmDeleteTreatment;
                 if (inv._standalone) {
@@ -329,7 +351,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
             <h3 className="text-sm font-semibold text-gray-800 mb-2">Behandlung l&ouml;schen?</h3>
             <p className="text-xs text-gray-500 mb-4">Die zugeh&ouml;rigen Dokumente bleiben erhalten.</p>
             <div className="flex gap-2 justify-end">
-              <button className="px-3 py-1.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeleteBeh(null)}>Abbrechen</button>
+              <button className="px-3 py-1.5 text-xs rounded border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeleteBeh(null)}>Abbrechen</button>
               <button className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700" onClick={async () => {
                 try { await onDeleteBehandlung(confirmDeleteBeh._id); } catch (e) { console.error("Delete Behandlung error:", e); }
                 setConfirmDeleteBeh(null);

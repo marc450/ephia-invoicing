@@ -5,7 +5,7 @@ import React, { useState } from "react";
 export default function ExpandableCard({ header, children, defaultOpen = false }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <div className={`rounded-lg border transition ${open ? "border-gray-300 bg-white shadow-sm" : "border-gray-200 bg-gray-50 hover:bg-white hover:border-gray-300"}`}>
+    <div className={`rounded-lg border transition ${open ? "border-gray-300 bg-white shadow-sm" : "border-[#DFE3EB] bg-gray-50 hover:bg-white hover:border-gray-300"}`}>
       <button
         className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
         onClick={() => setOpen(!open)}

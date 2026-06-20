@@ -145,7 +145,7 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
     );
   }
 
-  const inputCls = "w-full px-3 py-2 md:px-4 md:py-2.5 text-sm md:text-base border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400";
+  const inputCls = "w-full px-3 py-2 md:px-4 md:py-2.5 text-sm md:text-base border border-[#DFE3EB] rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400";
 
   return (
     <div className="fixed inset-0 z-40 bg-white md:bg-gray-50 flex flex-col overflow-hidden">
@@ -181,7 +181,7 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
         ))}
 
         {/* Questionnaire */}
-        <div className="border-t border-gray-200 pt-4 md:pt-6">
+        <div className="border-t border-[#DFE3EB] pt-4 md:pt-6">
           <h3 className="text-sm md:text-base font-bold text-teal-700 mb-3">Fragebogen (Anamnese)</h3>
           <p className="text-xs md:text-sm text-gray-500 mb-4">Bitte beantworten Sie die folgenden Fragen sorgfältig, damit wir etwaigen Risiken besser vorbeugen können.</p>
 
@@ -199,7 +199,7 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
 
           {/* Yes/No questions */}
           {template.questions.map((q, qi) => (
-            <div key={q.id} data-field={q.id} className={`mb-4 p-3 md:p-4 rounded-lg transition-colors ${validationErrors.has(q.id) ? "bg-red-50 md:bg-red-50 md:border md:border-red-300 ring-1 ring-red-300" : "bg-gray-50 md:bg-white md:border md:border-gray-200"}`}>
+            <div key={q.id} data-field={q.id} className={`mb-4 p-3 md:p-4 rounded-lg transition-colors ${validationErrors.has(q.id) ? "bg-red-50 md:bg-red-50 md:border md:border-red-300 ring-1 ring-red-300" : "bg-gray-50 md:bg-white md:border md:border-[#DFE3EB]"}`}>
               <div className="flex items-start gap-2 md:gap-3">
                 <span className={`text-xs md:text-sm font-bold mt-0.5 flex-shrink-0 w-5 md:w-6 text-right ${validationErrors.has(q.id) ? "text-red-500" : "text-gray-400"}`}>{qi + 1}.</span>
                 <div className="flex-1">
@@ -209,8 +209,8 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
                       {q.details && <p className="text-xs md:text-sm text-gray-500 mt-0.5">{q.details}</p>}
                     </div>
                     <div className="flex gap-3 mt-2 md:mt-0 md:flex-shrink-0">
-                      <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer(q.id, false)}>Nein</button>
-                      <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer(q.id, true)}>Ja</button>
+                      <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-[#DFE3EB]"}`} onClick={() => setAnswer(q.id, false)}>Nein</button>
+                      <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-[#DFE3EB]"}`} onClick={() => setAnswer(q.id, true)}>Ja</button>
                     </div>
                   </div>
                   {answers[q.id] && q.followUp && (
@@ -220,11 +220,11 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
                     </div>
                   )}
                   {q.subQuestion && answers[q.id] && (
-                    <div className={`mt-2 md:mt-3 p-2 md:p-3 rounded border ${validationErrors.has("q13_komplikationen") ? "bg-red-50 border-red-300" : "bg-white md:bg-gray-50 border-gray-200"}`} data-field="q13_komplikationen">
+                    <div className={`mt-2 md:mt-3 p-2 md:p-3 rounded border ${validationErrors.has("q13_komplikationen") ? "bg-red-50 border-red-300" : "bg-white md:bg-gray-50 border-[#DFE3EB]"}`} data-field="q13_komplikationen">
                       <p className="text-xs md:text-sm text-gray-700">Gab es dabei Komplikationen?</p>
                       <div className="flex gap-3 mt-1 md:mt-2">
-                        <button className={`px-3 md:px-5 py-1 md:py-2 text-xs md:text-sm rounded-full border transition ${answers["q13_komplikationen"] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer("q13_komplikationen", false)}>Nein</button>
-                        <button className={`px-3 md:px-5 py-1 md:py-2 text-xs md:text-sm rounded-full border transition ${answers["q13_komplikationen"] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer("q13_komplikationen", true)}>Ja</button>
+                        <button className={`px-3 md:px-5 py-1 md:py-2 text-xs md:text-sm rounded-full border transition ${answers["q13_komplikationen"] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-[#DFE3EB]"}`} onClick={() => setAnswer("q13_komplikationen", false)}>Nein</button>
+                        <button className={`px-3 md:px-5 py-1 md:py-2 text-xs md:text-sm rounded-full border transition ${answers["q13_komplikationen"] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-[#DFE3EB]"}`} onClick={() => setAnswer("q13_komplikationen", true)}>Ja</button>
                       </div>
                       {answers["q13_komplikationen"] && (
                         <div data-field="q13_komplikationen_text">
@@ -243,7 +243,7 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
             <>
               <h4 className="text-xs md:text-sm font-bold text-gray-600 mt-4 mb-2">Zusatzfragen bei Frauen</h4>
               {template.additionalQuestionsWomen.map((q, qi) => (
-                <div key={q.id} data-field={q.id} className={`mb-4 p-3 md:p-4 rounded-lg transition-colors ${validationErrors.has(q.id) ? "bg-red-50 md:bg-red-50 md:border md:border-red-300 ring-1 ring-red-300" : "bg-gray-50 md:bg-white md:border md:border-gray-200"}`}>
+                <div key={q.id} data-field={q.id} className={`mb-4 p-3 md:p-4 rounded-lg transition-colors ${validationErrors.has(q.id) ? "bg-red-50 md:bg-red-50 md:border md:border-red-300 ring-1 ring-red-300" : "bg-gray-50 md:bg-white md:border md:border-[#DFE3EB]"}`}>
                   <div className="flex items-start gap-2 md:gap-3">
                     <span className={`text-xs md:text-sm font-bold mt-0.5 flex-shrink-0 w-5 md:w-6 text-right ${validationErrors.has(q.id) ? "text-red-500" : "text-gray-400"}`}>{template.questions.length + qi + 1}.</span>
                     <div className="flex-1">
@@ -252,8 +252,8 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
                           <p className="text-sm md:text-base text-gray-800 font-medium">{q.label}</p>
                         </div>
                         <div className="flex gap-3 mt-2 md:mt-0 md:flex-shrink-0">
-                          <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer(q.id, false)}>Nein</button>
-                          <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-gray-200"}`} onClick={() => setAnswer(q.id, true)}>Ja</button>
+                          <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === false ? "bg-gray-200 text-gray-700 border-gray-300" : "bg-white text-gray-400 border-[#DFE3EB]"}`} onClick={() => setAnswer(q.id, false)}>Nein</button>
+                          <button className={`px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm rounded-full border transition ${answers[q.id] === true ? "bg-blue-500 text-white border-blue-500" : "bg-white text-gray-400 border-[#DFE3EB]"}`} onClick={() => setAnswer(q.id, true)}>Ja</button>
                         </div>
                       </div>
                     </div>
@@ -265,7 +265,7 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
         </div>
 
         {/* Doctor notes */}
-        <div className="border-t border-gray-200 pt-4 md:pt-6">
+        <div className="border-t border-[#DFE3EB] pt-4 md:pt-6">
           <h3 className="text-sm md:text-base font-bold text-teal-700 mb-2 md:mb-3">Vermerke der Ärztin/des Arztes zum Aufklärungsgespräch</h3>
           <textarea className={inputCls + " h-24 md:h-32"} value={doctorNotes} onChange={e => setDoctorNotes(e.target.value)} placeholder="Erörtert wurden z.B.: Ziel der Behandlung, Wahl des Verfahrens, Risiken und mögliche Komplikationen, Erfolgsaussichten..." />
         </div>
@@ -287,7 +287,7 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
         </div>
 
         {/* Consent text */}
-        <div className="border-t border-gray-200 pt-4 md:pt-6">
+        <div className="border-t border-[#DFE3EB] pt-4 md:pt-6">
           <h3 className="text-sm md:text-base font-bold text-teal-700 mb-2 md:mb-3">Einwilligung</h3>
           <div className="text-sm md:text-base text-gray-700 leading-relaxed whitespace-pre-line">{template.consentText}</div>
         </div>
@@ -298,7 +298,7 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
       </div>
 
       {/* Bottom sticky bar */}
-      <div className="flex-shrink-0 border-t border-gray-200 bg-white px-4 md:px-8 py-3 md:py-4">
+      <div className="flex-shrink-0 border-t border-[#DFE3EB] bg-white px-4 md:px-8 py-3 md:py-4">
         <div className="max-w-3xl mx-auto space-y-3">
         <label className={`flex items-start gap-2 md:gap-3 ${hasScrolledToEnd ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
           <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} className="mt-0.5 md:mt-1 rounded md:w-5 md:h-5" disabled={!hasScrolledToEnd} />
@@ -312,7 +312,7 @@ export function ConsentFormView({ template, patient, practice, onComplete, onCan
           >
             Unterschreiben
           </button>
-          <button className="px-4 md:px-6 py-2.5 md:py-3 text-xs md:text-sm text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg transition" onClick={() => setShowHandback(true)}>
+          <button className="px-4 md:px-6 py-2.5 md:py-3 text-xs md:text-sm text-gray-400 hover:text-gray-600 border border-[#DFE3EB] rounded-lg transition" onClick={() => setShowHandback(true)}>
             Ablehnen
           </button>
         </div>

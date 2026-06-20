@@ -130,7 +130,7 @@ export function toDE(num) {
   return num.toString().replace(".", ",");
 }
 
-export function buildLineItems(praeparat, ml, preisProMl, selectedZuschlaege, sachkosten, customS, einheit, useGoa3) {
+export function buildLineItems(praeparat, ml, preisProMl, selectedZuschlaege, sachkosten, customS, einheit, useGoa3, ganzeAmpulle, ampullenpreis) {
   // customS can be: { s1, s5, s267 } from calcWeightedForGesamt, or null
   const goaLines = BOTOX_GOA_ITEMS.map((g) => {
     // Swap GOÄ 1 → GOÄ 3 if extended consultation
@@ -166,16 +166,17 @@ export function buildLineItems(praeparat, ml, preisProMl, selectedZuschlaege, sa
 
   const productLine = {
     goaCode: "",
-    description: `${ml}${einheit || "ml"} ${praeparat || "Präparat"}`,
+    description: ganzeAmpulle ? `1 Ampulle ${praeparat || "Präparat"}` : `${ml}${einheit || "ml"} ${praeparat || "Präparat"}`,
     punkte: null,
     steigerung: null,
-    betrag: Math.round(ml * preisProMl * 100) / 100,
+    betrag: ganzeAmpulle ? Math.round((ampullenpreis || 0) * 100) / 100 : Math.round(ml * preisProMl * 100) / 100,
     isProduct: true,
     isPraeparat: true,
     unitPrice: preisProMl,
     quantity: ml,
     einheit: einheit || "ml",
     praeparatName: praeparat || "Präparat",
+    ganzeAmpulle: !!ganzeAmpulle,
   };
 
   // Add Sachkosten lines
@@ -194,11 +195,11 @@ export function buildLineItems(praeparat, ml, preisProMl, selectedZuschlaege, sa
 // Compute weighted Steigerungssätze to reach a desired Gesamtbetrag (inkl. MwSt.)
 // Distribution ratio: GOÄ 1/3 and GOÄ 5 get weight 1, GOÄ 267 gets weight 3
 // All start at base 2.3x, then excess is distributed by weight
-export function calcWeightedForGesamt(desiredGesamt, ml, preisProMl, selectedZuschlaege, sachkosten, noMwst, useGoa3) {
+export function calcWeightedForGesamt(desiredGesamt, ml, preisProMl, selectedZuschlaege, sachkosten, noMwst, useGoa3, ganzeAmpulle, ampullenpreis) {
   const p1 = useGoa3 ? 150 : 80; // GOÄ 1 or 3
   const p5 = 80;                  // GOÄ 5
   const p267 = 80;                // GOÄ 267
-  const productCost = Math.round(ml * preisProMl * 100) / 100;
+  const productCost = ganzeAmpulle ? Math.round((ampullenpreis || 0) * 100) / 100 : Math.round(ml * preisProMl * 100) / 100;
   const sachkostenTotal = (sachkosten || []).reduce((sum, sk) => sum + parseDE(sk.betragStr), 0);
   const zuschlagTotal = (selectedZuschlaege || []).reduce((sum, code) => {
     const z = ZUSCHLAEGE.find((zs) => zs.code === code);

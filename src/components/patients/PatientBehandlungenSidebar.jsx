@@ -95,7 +95,7 @@ export default function PatientBehandlungenSidebar({
           return (
             <div
               key={beh._id}
-              className={`mb-3 border rounded-lg overflow-hidden bg-white transition-colors ${isDragOver ? "border-blue-400 bg-blue-50/30 ring-2 ring-blue-200" : "border-gray-200"}`}
+              className={`mb-3 border rounded-lg overflow-hidden bg-white transition-colors ${isDragOver ? "border-blue-400 bg-blue-50/30 ring-2 ring-blue-200" : "border-[#DFE3EB]"}`}
               onDragOver={(e) => handleDragOver(e, beh._id)}
               onDragLeave={(e) => handleDragLeave(e, beh._id)}
               onDrop={(e) => handleDrop(e, beh._id)}
@@ -104,9 +104,6 @@ export default function PatientBehandlungenSidebar({
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="text-sm font-semibold text-gray-800">{fmtDate(beh.datum)}</span>
                   {beh.zeit && <span className="text-sm text-gray-500">{beh.zeit} Uhr</span>}
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${beh.status === "completed" ? "bg-green-50 text-green-600" : "bg-blue-50 text-blue-600"}`}>
-                    {beh.status === "completed" ? "Abgeschlossen" : "Geplant"}
-                  </span>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <span className="text-xs text-gray-400">{behDocs.length} Dok.</span>

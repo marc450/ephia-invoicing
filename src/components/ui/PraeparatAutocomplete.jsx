@@ -47,7 +47,7 @@ export default function PraeparatAutocomplete({ value, onChange, onSelect, sugge
         autoComplete="off"
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-[#DFE3EB] rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
           {filtered.map((p, i) => (
             <button
               key={i}

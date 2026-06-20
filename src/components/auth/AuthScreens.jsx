@@ -8,7 +8,7 @@ export function LoginScreen({ onSignInClick, onSignUpClick, onResetClick, onAGBC
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full border border-gray-200">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full border border-[#DFE3EB]">
         <div className="text-center mb-8">
           <div className="mb-2 flex justify-center"><img src="/logo.svg" alt="EPHIA" style={{ height: "42px" }} /></div>
           <div className="text-xs text-gray-400 uppercase tracking-wider">Rechnungsverwaltung</div>
@@ -24,7 +24,7 @@ export function LoginScreen({ onSignInClick, onSignUpClick, onResetClick, onAGBC
           <label className="block text-xs font-medium text-gray-500 mb-1.5">E-Mail</label>
           <input
             type="email"
-            className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="w-full border border-[#DFE3EB] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
             placeholder="deine@email.de"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -36,7 +36,7 @@ export function LoginScreen({ onSignInClick, onSignUpClick, onResetClick, onAGBC
           <label className="block text-xs font-medium text-gray-500 mb-1.5">Passwort</label>
           <input
             type="password"
-            className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="w-full border border-[#DFE3EB] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -53,13 +53,13 @@ export function LoginScreen({ onSignInClick, onSignUpClick, onResetClick, onAGBC
         </button>
 
         <div className="my-4 flex items-center gap-2">
-          <div className="flex-1 border-t border-gray-200"></div>
+          <div className="flex-1 border-t border-[#DFE3EB]"></div>
           <span className="text-xs text-gray-400">oder</span>
-          <div className="flex-1 border-t border-gray-200"></div>
+          <div className="flex-1 border-t border-[#DFE3EB]"></div>
         </div>
 
         <button
-          className="w-full border border-gray-200 text-gray-700 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-50 transition disabled:opacity-50"
+          className="w-full border border-[#DFE3EB] text-gray-700 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-50 transition disabled:opacity-50"
           onClick={() => onSignUpClick(email, password)}
           disabled={isLoading}
         >
@@ -93,7 +93,7 @@ export function SignUpScreen({ onSignUpClick, onBackClick, isLoading, error, suc
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full border border-gray-200">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full border border-[#DFE3EB]">
         <div className="text-center mb-8">
           <div className="mb-2 flex justify-center"><img src="/logo.svg" alt="EPHIA" style={{ height: "42px" }} /></div>
           <div className="text-xs text-gray-400 uppercase tracking-wider">Neues Konto</div>
@@ -126,7 +126,7 @@ export function SignUpScreen({ onSignUpClick, onBackClick, isLoading, error, suc
               <label className="block text-xs font-medium text-gray-500 mb-1.5">E-Mail</label>
               <input
                 type="email"
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="w-full border border-[#DFE3EB] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                 placeholder="deine@email.de"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -138,7 +138,7 @@ export function SignUpScreen({ onSignUpClick, onBackClick, isLoading, error, suc
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Passwort</label>
               <input
                 type="password"
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="w-full border border-[#DFE3EB] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                 placeholder="Mindestens 6 Zeichen"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -151,7 +151,7 @@ export function SignUpScreen({ onSignUpClick, onBackClick, isLoading, error, suc
               <input
                 type="password"
                 className={`w-full border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 ${
-                  password && !passwordsMatch ? "border-red-300 focus:ring-red-400" : "border-gray-200 focus:ring-blue-400"
+                  password && !passwordsMatch ? "border-red-300 focus:ring-red-400" : "border-[#DFE3EB] focus:ring-blue-400"
                 }`}
                 placeholder="Passwort wiederholen"
                 value={passwordConfirm}
@@ -196,7 +196,7 @@ export function ResetPasswordScreen({ onResetClick, onBackClick, isLoading, erro
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full border border-gray-200">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full border border-[#DFE3EB]">
         <div className="text-center mb-8">
           <div className="mb-2 flex justify-center"><img src="/logo.svg" alt="EPHIA" style={{ height: "42px" }} /></div>
           <div className="text-xs text-gray-400 uppercase tracking-wider">Passwort zurücksetzen</div>
@@ -218,7 +218,7 @@ export function ResetPasswordScreen({ onResetClick, onBackClick, isLoading, erro
           <label className="block text-xs font-medium text-gray-500 mb-1.5">E-Mail-Adresse</label>
           <input
             type="email"
-            className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="w-full border border-[#DFE3EB] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
             placeholder="deine@email.de"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -259,7 +259,7 @@ export function SetNewPasswordScreen({ onSubmit, onBackClick, isLoading, error, 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full border border-gray-200">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full border border-[#DFE3EB]">
         <div className="text-center mb-8">
           <div className="mb-2 flex justify-center"><img src="/logo.svg" alt="EPHIA" style={{ height: "42px" }} /></div>
           <div className="text-xs text-gray-400 uppercase tracking-wider">Neues Passwort festlegen</div>
@@ -283,7 +283,7 @@ export function SetNewPasswordScreen({ onSubmit, onBackClick, isLoading, error, 
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Neues Passwort</label>
               <input
                 type="password"
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="w-full border border-[#DFE3EB] rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                 placeholder="Mindestens 6 Zeichen"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -294,7 +294,7 @@ export function SetNewPasswordScreen({ onSubmit, onBackClick, isLoading, error, 
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Passwort bestätigen</label>
               <input
                 type="password"
-                className={`w-full border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 ${password && passwordConfirm && !passwordsMatch ? "border-red-300 focus:ring-red-400" : "border-gray-200 focus:ring-blue-400"}`}
+                className={`w-full border rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-1 ${password && passwordConfirm && !passwordsMatch ? "border-red-300 focus:ring-red-400" : "border-[#DFE3EB] focus:ring-blue-400"}`}
                 placeholder="Passwort wiederholen"
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}

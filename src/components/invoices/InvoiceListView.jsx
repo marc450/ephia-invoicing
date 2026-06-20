@@ -25,11 +25,11 @@ export default function InvoiceListView({ invoices, kleinunternehmer, onView, on
 
   if (invoices.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+      <div className="bg-white rounded-lg border border-[#DFE3EB] p-8 text-center">
         <div className="text-gray-300 text-4xl mb-3"></div>
         <p className="text-sm text-gray-500 mb-1">Noch keine Dokumente erstellt.</p>
         <p className="text-xs text-gray-400">Erstelle Deine erste Rechnung, um sie hier zu sehen.</p>
-        <button className="mt-4 px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50" onClick={onBack}>
+        <button className="mt-4 px-4 py-2 text-sm rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={onBack}>
           ← Neue Rechnung erstellen
         </button>
       </div>
@@ -132,7 +132,7 @@ export default function InvoiceListView({ invoices, kleinunternehmer, onView, on
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200">
+    <div className="bg-white rounded-lg border border-[#DFE3EB]">
       <div className="px-3 sm:px-5 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 relative z-10">
         <div className="flex items-center gap-4 overflow-x-auto">
           <button className={tabBtnCls(tab === "rechnungen") + " whitespace-nowrap flex-shrink-0"} onClick={() => { setTab("rechnungen"); setSortKey(null); if (onTabChange) onTabChange("rechnungen"); }}>
@@ -166,11 +166,11 @@ export default function InvoiceListView({ invoices, kleinunternehmer, onView, on
                   return (d.vorname || "").toLowerCase().includes(s) || (d.nachname || "").toLowerCase().includes(s);
                 });
                 return (
-                  <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                  <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 w-64 bg-white border border-[#DFE3EB] rounded-lg shadow-lg z-50 overflow-hidden">
                     <div className="p-2 border-b border-gray-100">
                       <input
                         autoFocus
-                        className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-full px-2.5 py-1.5 text-xs border border-[#DFE3EB] rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
                         placeholder="Patient suchen..."
                         value={newPickerSearch}
                         onChange={(e) => setNewPickerSearch(e.target.value)}
@@ -208,7 +208,7 @@ export default function InvoiceListView({ invoices, kleinunternehmer, onView, on
           <div className="relative">
             <svg className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             <input
-              className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 w-full sm:w-56"
+              className="pl-8 pr-3 py-1.5 text-xs border border-[#DFE3EB] rounded focus:outline-none focus:ring-1 focus:ring-blue-400 w-full sm:w-56"
               placeholder="Suchen..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -271,13 +271,13 @@ export default function InvoiceListView({ invoices, kleinunternehmer, onView, on
                   </td>
                   <td className="px-5 py-3 text-right align-middle" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownload(inv)}>
+                      <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownload(inv)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                       </button>
-                      <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" title="Drucken" onClick={() => onPrint(inv)}>
+                      <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" title="Drucken" onClick={() => onPrint(inv)}>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                       </button>
-                      <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
+                      <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </div>
@@ -334,13 +334,13 @@ export default function InvoiceListView({ invoices, kleinunternehmer, onView, on
                     </td>
                     <td className="px-5 py-3 text-right align-middle" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownloadHV(inv)}>
+                        <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownloadHV(inv)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                         </button>
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" title="Drucken" onClick={() => onPrintHV(inv)}>
+                        <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" title="Drucken" onClick={() => onPrintHV(inv)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                         </button>
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
+                        <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>
@@ -406,13 +406,13 @@ export default function InvoiceListView({ invoices, kleinunternehmer, onView, on
                     </td>
                     <td className="px-5 py-3 text-right align-middle" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownloadTD(inv)}>
+                        <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownloadTD(inv)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                         </button>
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" title="Drucken" onClick={() => onPrintTD(inv)}>
+                        <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" title="Drucken" onClick={() => onPrintTD(inv)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                         </button>
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
+                        <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>
@@ -478,10 +478,10 @@ export default function InvoiceListView({ invoices, kleinunternehmer, onView, on
                     <td className="px-3 py-3 align-middle"><span className="text-xs text-gray-400">{createdAt}</span></td>
                     <td className="px-5 py-3 text-right align-middle" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownloadConsent && onDownloadConsent(inv)}>
+                        <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition" title="PDF herunterladen" onClick={() => onDownloadConsent && onDownloadConsent(inv)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
                         </button>
-                        <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
+                        <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={() => onDelete(inv.id)}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </div>

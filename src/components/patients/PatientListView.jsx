@@ -101,12 +101,12 @@ export default function PatientListView({ patients, invoices, kleinunternehmer, 
 
   if (patients.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+      <div className="bg-white rounded-lg border border-[#DFE3EB] p-8 text-center">
         <div className="text-gray-300 text-4xl mb-3">👤</div>
         <p className="text-sm text-gray-500 mb-1">Noch keine Patient:innen vorhanden.</p>
         <p className="text-xs text-gray-400 mb-3">Patient:innen werden automatisch beim Erstellen einer Rechnung angelegt.</p>
         <div className="flex items-center justify-center gap-3">
-          <button className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50" onClick={onBack}>
+          <button className="px-4 py-2 text-sm rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={onBack}>
             ← Neue Rechnung erstellen
           </button>
           {onAddPatient && <button className="px-4 py-2 text-sm rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition" onClick={onAddPatient}>+ Patient:in hinzufügen</button>}
@@ -116,7 +116,7 @@ export default function PatientListView({ patients, invoices, kleinunternehmer, 
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-lg border border-[#DFE3EB] overflow-hidden">
       <div className="px-3 sm:px-5 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <h2 className="text-base font-semibold text-gray-800">Patient:innen</h2>
@@ -125,7 +125,7 @@ export default function PatientListView({ patients, invoices, kleinunternehmer, 
         <div className="relative">
           <svg className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <input
-            className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 w-full sm:w-56"
+            className="pl-8 pr-3 py-1.5 text-xs border border-[#DFE3EB] rounded focus:outline-none focus:ring-1 focus:ring-blue-400 w-full sm:w-56"
             placeholder="Suchen..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -157,7 +157,7 @@ export default function PatientListView({ patients, invoices, kleinunternehmer, 
               <td className="px-3 py-3 align-middle hidden md:table-cell"><span className={`text-sm ${p.paidThisYear > 0 ? "text-green-600" : "text-gray-400"}`}>{p.paidThisYear > 0 ? p.paidThisYear.toFixed(2).replace(".", ",") + " €" : "–"}</span></td>
               <td className="px-3 py-3 align-middle hidden lg:table-cell"><span className="text-sm text-gray-500">{p.lastInvoiceDate ? fmtDate(p.lastInvoiceDate) : "–"}</span></td>
               <td className="px-3 py-3 align-middle hidden sm:table-cell">
-                <button className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={(e) => { e.stopPropagation(); onDeletePatient(p._raw); }}>
+                <button className="p-1.5 rounded border border-[#DFE3EB] text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition" title="Löschen" onClick={(e) => { e.stopPropagation(); onDeletePatient(p._raw); }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
               </td>
