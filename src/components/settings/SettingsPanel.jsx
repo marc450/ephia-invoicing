@@ -2,9 +2,13 @@ import React, { useState, useRef, useEffect } from "react";
 import InfoTooltip from "../ui/InfoTooltip";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, pgv } from "../../lib/supabase/client";
 import { computePatientHash, getPatientIdentifier, encryptData, derivePDK, generateSalt, wrapMEK } from "../../lib/crypto";
+import { supabaseUpdateProfile } from "../../lib/supabase/profiles";
+import { supabaseDeletePatient } from "../../lib/supabase/patients";
+import { supabaseCreateBehandlung, supabaseDeleteBehandlung } from "../../lib/supabase/behandlungen";
+import { supabaseCreateDocument, supabaseDeleteDocument } from "../../lib/supabase/documents";
 // ═══════════════════ Settings Panel ═══════════════════
 
-export default function SettingsPanel({ practice, setPractice, show, setShow, onSave, isFirstTime, session, currentMEK, userId, patients, invoices, setPatients, setInvoices }) {
+export default function SettingsPanel({ practice, setPractice, show, setShow, onSave, isFirstTime, session, currentMEK, userId, patients, invoices, behandlungen, setPatients, setInvoices }) {
   const [pwCurrent, setPwCurrent] = React.useState("");
   const [pwNew, setPwNew] = React.useState("");
   const [pwConfirm, setPwConfirm] = React.useState("");
@@ -81,18 +85,27 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
         return { id: p.id, ...d };
       });
 
-      // Build invoice list — include ALL fields so restore is lossless
+      // Build invoice/document list — include ALL fields (incl. _docType,
+      // _patientId, _behandlungId linkage) so restore can rebuild the graph.
       const exportInvoices = (invoices || []).map(inv => {
         const { _supabaseId, encrypted_patient, patient_iv, ...rest } = inv;
         return rest;
       });
 
+      // Build behandlungen list — needed so document↔behandlung links survive
+      // a restore. id/patientId are the original DB ids (remapped on restore).
+      const exportBehandlungen = (behandlungen || []).map(b => {
+        const { _id, _patientId, _createdAt, ...behData } = b;
+        return { id: _id, patientId: _patientId, data: behData };
+      });
+
       const exportData = {
-        _exportVersion: 2,
+        _exportVersion: 3,
         _exportDate: new Date().toISOString(),
         _appVersion: "ephia-invoicing-mvp",
         practice: { ...practice },
         patients: exportPatients,
+        behandlungen: exportBehandlungen,
         invoices: exportInvoices,
       };
 
@@ -117,65 +130,68 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
   const importFileRef = React.useRef(null);
 
   const handleImportData = async (e) => {
+    const file = e?.target?.files?.[0];
     if (e?.target) e.target.value = "";
-    // ⚠️ DISABLED pending a proper rebuild. This restore deletes ALL existing
-    // data and then recreates invoices in the legacy `invoices` table using the
-    // old encryption envelope — but current (migrated) users load from the
-    // `documents` table, so a restore would wipe live data and write rows the
-    // app can't display. It must be re-architected around the documents schema
-    // with a matching export format, and tested on a throwaway account, before
-    // being re-enabled. The Export (backup creation) path is unaffected.
-    alert("Die Wiederherstellung aus einem Backup ist derzeit deaktiviert. Das Erstellen eines Backups (Export) funktioniert weiterhin.");
-    return;
-    /* eslint-disable no-unreachable */
-    const file = e.target.files?.[0];
     if (!file) return;
+
+    // Parse + fully validate the backup BEFORE touching any data, so a bad
+    // file can never leave the account half-wiped.
+    let data;
+    try { data = JSON.parse(await file.text()); }
+    catch { alert("Backup konnte nicht gelesen werden (kein gültiges JSON)."); return; }
+    if (!data || !data._exportVersion || !Array.isArray(data.patients) || !Array.isArray(data.invoices)) {
+      alert("Ungültiges Backup-Format."); return;
+    }
+    const behBackup = Array.isArray(data.behandlungen) ? data.behandlungen : [];
+
+    const accessToken = session?.access_token;
+    const uid = session?.user?.id || userId;
+    if (!accessToken || !uid) { alert("Keine aktive Sitzung."); return; }
+    // E2EE is required: everything is stored encrypted. Without a MEK we cannot
+    // re-encrypt, and we must never write plaintext PII.
+    if (!currentMEK) {
+      alert("Verschlüsselung ist nicht entsperrt. Bitte melde Dich neu an, bevor Du ein Backup wiederherstellst.");
+      return;
+    }
+
+    // Strong, explicit confirmation — this REPLACES all current data.
+    const WORD = "ERSETZEN";
+    const typed = window.prompt(
+      `Backup vom ${data._exportDate ? new Date(data._exportDate).toLocaleString("de-DE") : "?"}:\n` +
+      `${data.patients.length} Patient:innen, ${behBackup.length} Behandlungen, ${data.invoices.length} Dokumente.\n\n` +
+      `ACHTUNG: ALLE aktuellen Daten werden gelöscht und durch das Backup ersetzt.\n` +
+      `Bewahre die Backup-Datei auf, bis Du geprüft hast, dass alles korrekt wiederhergestellt wurde.\n\n` +
+      `Tippe ${WORD}, um fortzufahren:`
+    );
+    if (typed !== WORD) { alert("Wiederherstellung abgebrochen."); return; }
+
     setImportLoading(true);
     try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      if (!data._exportVersion || !data.invoices || !data.patients) {
-        throw new Error("Ungültiges Backup-Format.");
-      }
-      const confirmed = window.confirm(
-        `Backup vom ${new Date(data._exportDate).toLocaleDateString("de-DE")} gefunden.\n\n` +
-        `${data.patients.length} Patient:innen und ${data.invoices.length} Rechnungen.\n\n` +
-        `ACHTUNG: Alle vorhandenen Daten werden durch die importierten Daten ersetzt. Fortfahren?`
-      );
-      if (!confirmed) { setImportLoading(false); return; }
-
-      const accessToken = session?.access_token;
-      const uid = session?.user?.id || userId;
-      if (!accessToken || !uid) throw new Error("Keine aktive Sitzung.");
-
-      // 1. Restore practice settings
+      // 1. Restore practice settings.
       if (data.practice) {
-        const restoredPractice = { ...data.practice };
-        await supabaseUpdateProfile(accessToken, uid, restoredPractice);
-        setPractice(restoredPractice);
+        await supabaseUpdateProfile(accessToken, uid, { ...data.practice });
+        setPractice({ ...data.practice });
       }
 
-      // 2. Delete existing patients and invoices
+      // 2. Delete current data, children before parents:
+      //    documents → behandlungen → patients (all on the documents schema).
       for (const inv of invoices || []) {
-        if (inv._supabaseId) {
-          try { await supabaseDeleteInvoice(accessToken, inv._supabaseId); } catch (err) { console.warn("Delete invoice failed:", err); }
-        }
+        if (inv._supabaseId) { try { await supabaseDeleteDocument(accessToken, inv._supabaseId); } catch (err) { console.warn("Delete document failed:", err); } }
+      }
+      for (const b of behandlungen || []) {
+        if (b._id) { try { await supabaseDeleteBehandlung(accessToken, b._id); } catch (err) { console.warn("Delete behandlung failed:", err); } }
       }
       for (const p of patients || []) {
-        if (p.id) {
-          try { await supabaseDeletePatient(accessToken, p.id); } catch (err) { console.warn("Delete patient failed:", err); }
-        }
+        if (p.id) { try { await supabaseDeletePatient(accessToken, p.id); } catch (err) { console.warn("Delete patient failed:", err); } }
       }
 
-      // 3. Re-create patients — always encrypted; the plaintext email column is
-      // never written (we store the HMAC patient_hash instead). Mirrors the main
-      // patient-create path in App.jsx, and stores the ciphertext string under
-      // `data` with the iv/version at top level so the loader can decrypt it.
-      // Requires an active MEK; without one we skip rather than store plaintext PII.
-      const newPatients = [];
+      const fail = { patients: 0, behandlungen: 0, documents: 0 };
+
+      // 3. Recreate patients (encryption_version 1, email = patient_hash; never
+      //    plaintext). Build old→new id map to re-link behandlungen/documents.
+      const patientIdMap = {};
       for (const p of data.patients) {
-        const { id, ...patientData } = p;
-        if (!currentMEK) { console.warn("Skipping patient restore: encryption key not available"); continue; }
+        const { id: oldId, ...patientData } = p;
         try {
           const patientHash = await computePatientHash(getPatientIdentifier(patientData), currentMEK);
           const { ciphertext, iv } = await encryptData(patientData, currentMEK);
@@ -184,41 +200,59 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
             headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" },
             body: JSON.stringify({ user_id: uid, email: patientHash, patient_hash: patientHash, data: ciphertext, iv, encryption_version: 1 }),
           });
-          const created = await res.json();
-          const rec = Array.isArray(created) ? created[0] : created;
-          newPatients.push({ ...rec, data: patientData });
-        } catch (err) { console.warn("Create patient failed:", err); }
+          if (!res.ok) throw new Error(await res.text());
+          const json = await res.json();
+          const rec = Array.isArray(json) ? json[0] : json;
+          if (oldId != null && rec?.id) patientIdMap[oldId] = rec.id;
+        } catch (err) { fail.patients++; console.warn("Restore patient failed:", err); }
       }
-      setPatients(newPatients);
 
-      // 4. Re-create invoices (encrypt patient data if MEK available)
-      const newInvoices = [];
-      for (const inv of data.invoices) {
-        let invoiceData = { ...inv };
-        // Remove internal fields that shouldn't be stored
-        delete invoiceData._supabaseId;
-        delete invoiceData._createdAt;
-        if (currentMEK && invoiceData.patient) {
-          const { ciphertext, iv } = await encryptData(invoiceData.patient, currentMEK);
-          invoiceData = { ...invoiceData, encrypted_patient: ciphertext, patient_iv: iv };
-          delete invoiceData.patient;
-        }
+      // 4. Recreate behandlungen (encryption_version 2), remap patient_id.
+      const behIdMap = {};
+      for (const b of behBackup) {
         try {
-          const created = await supabaseCreateInvoice(accessToken, uid, invoiceData);
-          // Restore patient for in-memory use
-          const memInv = { ...inv, _supabaseId: created.id, _createdAt: created.created_at };
-          delete memInv._supabaseId; // will be set from created
-          newInvoices.push({ ...inv, _supabaseId: created.id, _createdAt: created.created_at });
-        } catch (err) { console.warn("Create invoice failed:", err); }
+          const newPatientId = b.patientId != null ? (patientIdMap[b.patientId] || null) : null;
+          const { ciphertext, iv } = await encryptData(b.data || {}, currentMEK);
+          const created = await supabaseCreateBehandlung(accessToken, uid, newPatientId, ciphertext, iv, 2);
+          if (b.id != null && created?.id) behIdMap[b.id] = created.id;
+        } catch (err) { fail.behandlungen++; console.warn("Restore behandlung failed:", err); }
       }
-      setInvoices(newInvoices);
 
-      alert(`Import erfolgreich: ${newPatients.length} Patient:innen und ${newInvoices.length} Rechnungen wiederhergestellt.`);
+      // 5. Recreate documents (encryption_version 2), remap patient_id +
+      //    behandlung_id and preserve doc_type. The encrypted body is the doc
+      //    content with the internal linkage fields stripped back out.
+      for (const inv of data.invoices) {
+        try {
+          const { _supabaseId, _createdAt, _docType, _behandlungId, _patientId, encrypted_patient, patient_iv, ...body } = inv;
+          const newPatientId = _patientId != null ? (patientIdMap[_patientId] || null) : null;
+          const newBehId = _behandlungId != null ? (behIdMap[_behandlungId] || null) : null;
+          const { ciphertext, iv } = await encryptData(body, currentMEK);
+          await supabaseCreateDocument(accessToken, uid, newPatientId, newBehId, _docType || "rechnung", ciphertext, iv, 2);
+        } catch (err) { fail.documents++; console.warn("Restore document failed:", err); }
+      }
+
+      // 6. Make sure the app loads from the documents schema after restore.
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${pgv(uid)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ docs_migration_version: 1 }),
+        });
+      } catch (err) { console.warn("Failed to set migration version:", err); }
+
+      const failed = fail.patients + fail.behandlungen + fail.documents;
+      alert(
+        failed > 0
+          ? `Wiederherstellung mit Fehlern abgeschlossen:\n${fail.patients} Patient:innen, ${fail.behandlungen} Behandlungen, ${fail.documents} Dokumente konnten NICHT wiederhergestellt werden.\n\nBitte bewahre die Backup-Datei auf. Die Seite wird neu geladen.`
+          : "Wiederherstellung erfolgreich. Die Seite wird neu geladen."
+      );
+      // Reload so all in-memory state is re-fetched cleanly from the database.
+      window.location.reload();
     } catch (err) {
       console.error("Import failed:", err);
-      alert("Import fehlgeschlagen: " + err.message);
+      alert("Import fehlgeschlagen: " + (err?.message || err) + "\n\nBitte bewahre die Backup-Datei auf.");
+      setImportLoading(false);
     }
-    setImportLoading(false);
   };
 
   const inputCls2 = "w-full border border-[#DFE3EB] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition";
@@ -428,16 +462,15 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
                 </div>
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                   <p className="text-xs font-medium text-gray-600 mb-1">Import</p>
-                  <p className="text-[10px] text-gray-400 mb-3">Wiederherstellung ist derzeit deaktiviert (wird überarbeitet). Backups erstellen ist weiterhin möglich.</p>
+                  <p className="text-[10px] text-gray-400 mb-3">Daten aus Backup wiederherstellen. Alle vorhandenen Daten werden ersetzt.</p>
                   <input ref={importFileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportData} />
                   <button
                     className="px-3 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
-                    disabled
-                    title="Wiederherstellung ist derzeit deaktiviert"
+                    disabled={importLoading}
                     onClick={() => importFileRef.current?.click()}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m4-8l-4-4m0 0l-4 4m4-4v12" /></svg>
-                    Backup wiederherstellen (deaktiviert)
+                    {importLoading ? "Wird wiederhergestellt..." : "Backup wiederherstellen"}
                   </button>
                 </div>
               </div>

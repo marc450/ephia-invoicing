@@ -2327,7 +2327,7 @@ export default function EphiaInvoice() {
         </div>
       )}
 
-      <SettingsPanel practice={practice} setPractice={setPractice} show={showSettings} setShow={setShowSettings} onSave={savePracticeSettings} isFirstTime={isFirstTimeUser} session={session} currentMEK={currentMEK} userId={user?.id} patients={patients} invoices={invoices} setPatients={setPatients} setInvoices={setInvoices} />
+      <SettingsPanel practice={practice} setPractice={setPractice} show={showSettings} setShow={setShowSettings} onSave={savePracticeSettings} isFirstTime={isFirstTimeUser} session={session} currentMEK={currentMEK} userId={user?.id} patients={patients} invoices={invoices} behandlungen={behandlungen} setPatients={setPatients} setInvoices={setInvoices} />
 
       {/* Verdienst Popup */}
       {showVerdienst && (() => {

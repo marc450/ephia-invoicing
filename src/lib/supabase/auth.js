@@ -41,11 +41,12 @@ export async function supabaseSignOut(accessToken) {
 }
 
 export async function supabaseResetPassword(email) {
-  // Store code verifier for PKCE flow
-  const codeVerifier = generateCodeVerifier();
-  const codeChallenge = await generateCodeChallenge(codeVerifier);
-  sessionStorage.setItem("ephia_pkce_verifier", codeVerifier);
-
+  // Use the implicit (hash) recovery flow rather than PKCE. PKCE requires a
+  // code_verifier to survive from the request to the link-click, but it's stored
+  // per browsing context — opening the reset email in a new tab / mail app /
+  // other device loses it, which made every reset fail with "link invalid".
+  // The implicit flow carries the token in the redirect URL hash, so no
+  // client-side state is needed (handled in App.jsx checkSession).
   const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
     method: "POST",
     headers: {
@@ -55,8 +56,6 @@ export async function supabaseResetPassword(email) {
     body: JSON.stringify({
       email,
       redirect_to: "https://invoicing.ephia.de/",
-      code_challenge: codeChallenge,
-      code_challenge_method: "s256",
     }),
   });
   const data = await res.json();
