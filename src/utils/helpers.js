@@ -1,4 +1,4 @@
-import { PUNKTWERT, BOTOX_GOA_ITEMS, ICD10_CODES } from "../constants";
+import { PUNKTWERT, BOTOX_GOA_ITEMS, ICD10_CODES, ZUSCHLAEGE } from "../constants";
 
 // ═══════════════════ Helpers ═══════════════════
 
