@@ -32,7 +32,7 @@ export default function BehandlungAddPanel({
   };
 
   const copyFromDoc = (id) => {
-    const src = copySourceDocs.find((d) => d.id === id);
+    const src = copySourceDocs.find((d) => String(d.id) === String(id));
     if (!src) return;
     setNewTreatmentPraeparat(src.praeparat || "");
     if (src.einheit) setNewTreatmentEinheit(src.einheit);
@@ -84,7 +84,7 @@ export default function BehandlungAddPanel({
           <textarea
             className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
             rows={4}
-            placeholder="Optionale Notizen zur Behandlung\u2026"
+            placeholder="Optionale Notizen zur Behandlung…"
             value={newTreatmentNotes}
             onChange={(e) => setNewTreatmentNotes(e.target.value)}
           />
