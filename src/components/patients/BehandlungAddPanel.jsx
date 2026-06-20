@@ -36,8 +36,15 @@ export default function BehandlungAddPanel({
     if (!src) return;
     setNewTreatmentPraeparat(src.praeparat || "");
     if (src.einheit) setNewTreatmentEinheit(src.einheit);
-    const menge = src.mlStr || (src.ml != null ? toDE(src.ml) : "");
-    if (menge && newTreatmentMarkers.length === 0) setNewTreatmentAmount(menge);
+    // Transfer the documented injection points, if the source has any
+    const srcMarkers = src.treatmentDoc?.markers || [];
+    if (srcMarkers.length > 0) {
+      setNewTreatmentMarkers(srcMarkers.map((m, i) => ({ id: Date.now() + i, x: m.x, y: m.y, amount: m.amount })));
+      if (src.treatmentDoc?.facePhoto) setNewTreatmentFacePhoto(src.treatmentDoc.facePhoto);
+    } else {
+      const menge = src.mlStr || (src.ml != null ? toDE(src.ml) : "");
+      if (menge) setNewTreatmentAmount(menge);
+    }
   };
 
   return (
@@ -66,8 +73,8 @@ export default function BehandlungAddPanel({
                 </div>
                 <select
                   className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
-                  value=""
-                  onChange={(e) => { if (e.target.value) copyFromDoc(e.target.value); }}
+                  value={newTreatmentInvoiceId || ""}
+                  onChange={(e) => { const v = e.target.value; setNewTreatmentInvoiceId(v || null); if (v) copyFromDoc(v); }}
                 >
                   <option value="">&mdash; Dokument w&auml;hlen &mdash;</option>
                   {copySourceDocs.map((inv) => (
