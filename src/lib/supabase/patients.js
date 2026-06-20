@@ -31,26 +31,3 @@ export async function supabaseFetchPatients(accessToken, userId) {
   if (!res.ok) throw new Error(data.message || "Fetch patients failed");
   return data;
 }
-
-export async function supabaseUpsertPatient(accessToken, userId, patientData) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/patients`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`,
-        "Prefer": "return=representation,resolution=merge-duplicates",
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        email: patientData.email.toLowerCase().trim(),
-        data: patientData,
-      }),
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Upsert patient failed");
-  return Array.isArray(data) ? data[0] : data;
-}

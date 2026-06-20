@@ -9,7 +9,7 @@ import { supabaseFetchInvoices, supabaseCreateInvoice, supabaseUpdateInvoice, su
 import { supabaseFetchDocuments, supabaseCreateDocument, supabaseUpdateDocument, supabaseDeleteDocument, supabaseUpdateDocumentBehandlung } from "./lib/supabase/documents";
 import { supabaseFetchBehandlungen, supabaseCreateBehandlung, supabaseUpdateBehandlung, supabaseDeleteBehandlung } from "./lib/supabase/behandlungen";
 import { migrateInvoicesToDocuments } from "./lib/migration";
-import { supabaseFetchPatients, supabaseUpsertPatient, supabaseDeletePatient } from "./lib/supabase/patients";
+import { supabaseFetchPatients, supabaseDeletePatient } from "./lib/supabase/patients";
 import { supabaseFetchActivityLog, supabaseCreateActivityLog } from "./lib/supabase/activityLog";
 import { trackEvent } from "./lib/analytics";
 import {
@@ -1122,7 +1122,11 @@ export default function EphiaInvoice() {
               }
             }
           } else {
-            await supabaseUpsertPatient(session.access_token, user.id, patient);
+            // Fail closed: never write an unencrypted patient (plaintext PII).
+            // currentMEK is always set for a logged-in user; if it somehow isn't,
+            // skip the patient-table upsert rather than storing plaintext. The
+            // patient data is still persisted encrypted inside the saved document.
+            console.warn("Skipping patient upsert: encryption key not available");
           }
           // Reload patients (decrypted)
           const patientRecords = await supabaseFetchPatients(session.access_token, user.id);
@@ -3300,9 +3304,10 @@ export default function EphiaInvoice() {
                         }
                         setPatients(decryptedPatients);
                       } else if (session) {
-                        await supabaseUpsertPatient(session.access_token, user.id, newPatientData);
-                        const patientRecords = await supabaseFetchPatients(session.access_token, user.id);
-                        setPatients(patientRecords.map((r) => ({ ...r, data: r.data || {} })));
+                        // Fail closed: refuse to create an unencrypted patient (plaintext PII).
+                        // A logged-in user always has currentMEK; if not, re-login is required.
+                        alert("Verschlüsselung nicht bereit. Bitte melde Dich neu an, bevor Du Patient:innen anlegst.");
+                        return;
                       }
                     } catch (e) { console.error("Error creating patient:", e); }
                     setNewPatientData(EMPTY_PATIENT);
@@ -3431,9 +3436,10 @@ export default function EphiaInvoice() {
                         }
                         setPatients(decryptedPatients);
                       } else if (session) {
-                        await supabaseUpsertPatient(session.access_token, user.id, newPatientData);
-                        const patientRecords = await supabaseFetchPatients(session.access_token, user.id);
-                        setPatients(patientRecords.map((r) => ({ ...r, data: r.data || {} })));
+                        // Fail closed: refuse to create an unencrypted patient (plaintext PII).
+                        // A logged-in user always has currentMEK; if not, re-login is required.
+                        alert("Verschlüsselung nicht bereit. Bitte melde Dich neu an, bevor Du Patient:innen anlegst.");
+                        return;
                       }
                     } catch (e) { console.error("Error creating patient:", e); }
                     setShowAddPatient(false);

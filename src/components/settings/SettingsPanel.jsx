@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import InfoTooltip from "../ui/InfoTooltip";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../../lib/supabase/client";
+import { computePatientHash, getPatientIdentifier, encryptData } from "../../lib/crypto";
 // ═══════════════════ Settings Panel ═══════════════════
 
 export default function SettingsPanel({ practice, setPractice, show, setShow, onSave, isFirstTime, session, currentMEK, userId, patients, invoices, setPatients, setInvoices }) {
@@ -144,17 +146,24 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
         }
       }
 
-      // 3. Re-create patients (encrypt if MEK available)
+      // 3. Re-create patients — always encrypted; the plaintext email column is
+      // never written (we store the HMAC patient_hash instead). Mirrors the main
+      // patient-create path in App.jsx, and stores the ciphertext string under
+      // `data` with the iv/version at top level so the loader can decrypt it.
+      // Requires an active MEK; without one we skip rather than store plaintext PII.
       const newPatients = [];
       for (const p of data.patients) {
         const { id, ...patientData } = p;
-        let toStore = patientData;
-        if (currentMEK) {
-          const { ciphertext, iv } = await encryptData(patientData, currentMEK);
-          toStore = { encrypted: ciphertext, iv, encryption_version: 1 };
-        }
+        if (!currentMEK) { console.warn("Skipping patient restore: encryption key not available"); continue; }
         try {
-          const created = await supabaseUpsertPatient(accessToken, uid, toStore);
+          const patientHash = await computePatientHash(getPatientIdentifier(patientData), currentMEK);
+          const { ciphertext, iv } = await encryptData(patientData, currentMEK);
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/patients`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, "Prefer": "return=representation" },
+            body: JSON.stringify({ user_id: uid, email: patientHash, patient_hash: patientHash, data: ciphertext, iv, encryption_version: 1 }),
+          });
+          const created = await res.json();
           const rec = Array.isArray(created) ? created[0] : created;
           newPatients.push({ ...rec, data: patientData });
         } catch (err) { console.warn("Create patient failed:", err); }
