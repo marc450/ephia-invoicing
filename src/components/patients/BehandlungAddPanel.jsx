@@ -1,12 +1,12 @@
 import React from "react";
-import { fmtDate, evalAmount, fmtUnits } from "../../utils/helpers";
+import { fmtDate, evalAmount, fmtUnits, toDE } from "../../utils/helpers";
 import { trackEvent } from "../../lib/analytics";
 import PraeparatAutocomplete from "../ui/PraeparatAutocomplete";
 import TreatmentMap from "../treatment/TreatmentMap";
 import InfoTooltip from "../ui/InfoTooltip";
 
 export default function BehandlungAddPanel({
-  patient, email, rawData, patientDbId, matchingInvoices, rechnungsInvoices, practice,
+  patient, email, rawData, patientDbId, matchingInvoices, rechnungsInvoices, copySourceDocs = [], practice,
   editingTreatmentInv, setEditingTreatmentInv,
   newTreatmentMarkers, setNewTreatmentMarkers,
   newTreatmentInvoiceId, setNewTreatmentInvoiceId,
@@ -21,9 +21,24 @@ export default function BehandlungAddPanel({
   setCenterView,
   setViewingTreatment, setPendingQuickInvoice,
 }) {
-  const linkedInv = newTreatmentInvoiceId ? matchingInvoices.find(i => i.id === newTreatmentInvoiceId) : null;
-  const showPraeparatFields = !linkedInv;
-  const activeEinheit = linkedInv ? (linkedInv.einheit || "SE") : newTreatmentEinheit;
+  const activeEinheit = newTreatmentEinheit;
+
+  const docLabel = (d) => {
+    const datum = d.invoiceMeta?.datum ? fmtDate(d.invoiceMeta.datum) : "";
+    const base = d._hvOnly
+      ? "Honorarvereinbarung"
+      : (d.invoiceMeta?.nummer && d.invoiceMeta.nummer !== "—" ? d.invoiceMeta.nummer : "Rechnung");
+    return datum ? `${base} — ${datum}` : base;
+  };
+
+  const copyFromDoc = (id) => {
+    const src = copySourceDocs.find((d) => d.id === id);
+    if (!src) return;
+    setNewTreatmentPraeparat(src.praeparat || "");
+    if (src.einheit) setNewTreatmentEinheit(src.einheit);
+    const menge = src.mlStr || (src.ml != null ? toDE(src.ml) : "");
+    if (menge && newTreatmentMarkers.length === 0) setNewTreatmentAmount(menge);
+  };
 
   return (
     <div className="px-3 sm:px-5 py-4" style={{ maxWidth: 780 }}>
@@ -43,25 +58,26 @@ export default function BehandlungAddPanel({
                 onChange={(e) => setNewTreatmentDate(e.target.value)}
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-0.5">Rechnung verkn&uuml;pfen</label>
-              <select
-                className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
-                value={newTreatmentInvoiceId || ""}
-                onChange={(e) => setNewTreatmentInvoiceId(e.target.value || null)}
-              >
-                <option value="">&mdash; Keine &mdash;</option>
-                {rechnungsInvoices.filter((inv) => {
-                  if (!inv.treatmentDoc) return true;
-                  if (editingTreatmentInv && inv.id === editingTreatmentInv.id) return true;
-                  return false;
-                }).map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    {inv.invoiceMeta.nummer} &mdash; {fmtDate(inv.invoiceMeta.datum)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {copySourceDocs.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1 mb-0.5">
+                  <label className="block text-xs font-medium text-gray-500">Daten aus Dokument &uuml;bertragen</label>
+                  <InfoTooltip>Pr&auml;parat, Menge und Einheit aus einer bestehenden Rechnung oder Honorarvereinbarung &uuml;bernehmen. Es wird keine Verkn&uuml;pfung erstellt &mdash; die Felder lassen sich danach frei bearbeiten.</InfoTooltip>
+                </div>
+                <select
+                  className="w-full border border-[#DFE3EB] rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                  value=""
+                  onChange={(e) => { if (e.target.value) copyFromDoc(e.target.value); }}
+                >
+                  <option value="">&mdash; Dokument w&auml;hlen &mdash;</option>
+                  {copySourceDocs.map((inv) => (
+                    <option key={inv.id} value={inv.id}>
+                      {docLabel(inv)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium mb-1.5">Notizen</p>
@@ -76,9 +92,7 @@ export default function BehandlungAddPanel({
 
         {/* Right column: Praeparat + Injektionspunkte */}
         <div className="flex-1 min-w-0">
-          {showPraeparatFields && (
-            <>
-              <div className="flex items-center gap-1 mb-1.5">
+          <div className="flex items-center gap-1 mb-1.5">
                 <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Pr&auml;parat</p>
                 <InfoTooltip>H&auml;ufig verwendete Pr&auml;parate kannst Du in den Praxis-Einstellungen speichern, um sie hier schnell auszuw&auml;hlen.</InfoTooltip>
               </div>
@@ -123,8 +137,6 @@ export default function BehandlungAddPanel({
                   </select>
                 </div>
               </div>
-            </>
-          )}
 
           <p className="text-[10px] uppercase tracking-wider text-gray-400 font-medium mb-1.5">Injektionspunkte <span className="normal-case tracking-normal text-gray-300">(optional)</span></p>
           <div className="bg-gray-50 rounded-lg p-3">
@@ -139,7 +151,7 @@ export default function BehandlungAddPanel({
           const treatmentData = {
             markers: newTreatmentMarkers.map(m => ({ x: m.x, y: m.y, amount: m.amount })),
             behandlungsDatum: newTreatmentDate,
-            praeparat: linkedInv ? (linkedInv.praeparat || "") : newTreatmentPraeparat,
+            praeparat: newTreatmentPraeparat,
             einheit: activeEinheit,
             notes: newTreatmentNotes.trim() || "",
             amount: effectiveAmount || "",
@@ -148,10 +160,6 @@ export default function BehandlungAddPanel({
           let savedEntry = null;
           if (editingTreatmentInv) {
             const updated = { ...editingTreatmentInv, treatmentDoc: { ...editingTreatmentInv.treatmentDoc, ...treatmentData } };
-            if (onUpdateInvoice) onUpdateInvoice(updated);
-            savedEntry = updated;
-          } else if (linkedInv) {
-            const updated = { ...linkedInv, treatmentDoc: treatmentData };
             if (onUpdateInvoice) onUpdateInvoice(updated);
             savedEntry = updated;
           } else {
@@ -190,9 +198,9 @@ export default function BehandlungAddPanel({
           }
         };
 
-        const hasPraep = linkedInv ? (linkedInv.praeparat || "") : newTreatmentPraeparat;
+        const hasPraep = newTreatmentPraeparat;
         const hasAmount = newTreatmentMarkers.length > 0 || newTreatmentAmount;
-        const quickEnabled = !editingTreatmentInv && !linkedInv && hasPraep && hasAmount;
+        const quickEnabled = !editingTreatmentInv && hasPraep && hasAmount;
 
         return (
           <div className="mt-4 flex items-center gap-2 flex-wrap">

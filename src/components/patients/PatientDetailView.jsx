@@ -63,6 +63,10 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
     return email && invEmail && invEmail === email;
   });
   const rechnungsInvoices = matchingInvoices.filter((inv) => !inv._standalone && !inv._hvOnly && !inv._consentForm);
+  // Rechnungen + Honorarvereinbarungen of this patient that carry Präparat data to copy from
+  const copySourceDocs = matchingInvoices
+    .filter((inv) => !inv._standalone && !inv._consentForm && (inv.praeparat || inv.einheit))
+    .sort((a, b) => (b.invoiceMeta?.datum || b.savedAt || "").localeCompare(a.invoiceMeta?.datum || a.savedAt || ""));
   const patientBeh = behandlungen.filter(b => b._patientId === patientDbId).sort((a, b) => (b.datum || b._createdAt || "").localeCompare(a.datum || a._createdAt || ""));
   const lastActivity = matchingInvoices.length > 0 ? matchingInvoices.reduce((best, inv) => {
     const t = inv._createdAt || inv.savedAt || "";
@@ -300,7 +304,7 @@ export default function PatientDetailView({ patient, invoices, behandlungen = []
             </div>
             <BehandlungAddPanel
               patient={patient} email={email} rawData={rawData} patientDbId={patientDbId}
-              matchingInvoices={matchingInvoices} rechnungsInvoices={rechnungsInvoices} practice={practice}
+              matchingInvoices={matchingInvoices} rechnungsInvoices={rechnungsInvoices} copySourceDocs={copySourceDocs} practice={practice}
               editingTreatmentInv={editingTreatmentInv} setEditingTreatmentInv={setEditingTreatmentInv}
               newTreatmentMarkers={newTreatmentMarkers} setNewTreatmentMarkers={setNewTreatmentMarkers}
               newTreatmentInvoiceId={newTreatmentInvoiceId} setNewTreatmentInvoiceId={setNewTreatmentInvoiceId}
