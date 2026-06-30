@@ -158,6 +158,7 @@ export default function EphiaInvoice() {
   const [viewingInvoice, setViewingInvoice] = useState(null);
   const [amendingId, setAmendingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDeleteVoucher, setConfirmDeleteVoucher] = useState(null);
   const [confirmDeletePatient, setConfirmDeletePatient] = useState(null);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
@@ -190,6 +191,9 @@ export default function EphiaInvoice() {
   const [validationErrors, setValidationErrors] = useState({});
   const [previewTab, setPreviewTab] = useState("rechnung"); // "rechnung" | "honorar"
   const [saveToast, setSaveToast] = useState("");  // empty = hidden, string = message
+  const [toastIsError, setToastIsError] = useState(false); // red error variant of the toast
+  // Show an app-native error toast (never a browser alert).
+  const showErrorToast = (msg) => { setToastIsError(true); setSaveToast(msg); setTimeout(() => { setSaveToast(""); setToastIsError(false); }, 4000); };
   const docsMigrated = useRef(false); // true after docs_migration_version >= 1
 
   // ─── Sync selectedPatient from URL when navigating directly to /patients/:id ───
@@ -1091,19 +1095,28 @@ export default function EphiaInvoice() {
       navigate(`/gutscheine/${created.id}`);
     } catch (e) {
       console.error("Create voucher failed:", e);
-      alert("Gutschein konnte nicht erstellt werden: " + (e?.message || e));
+      showErrorToast("Gutschein konnte nicht erstellt werden: " + (e?.message || e));
     } finally { setVoucherBusy(false); }
   };
 
   const handleViewVoucher = (v) => { setViewingVoucher(v); setVoucherPreviewTab("karte"); navigate(`/gutscheine/${v.id}`); };
 
-  const handleDeleteVoucher = async (v) => {
-    if (!window.confirm(`Gutschein ${v.code} wirklich löschen?`)) return;
+  // Open the in-app confirmation modal (no browser dialogs).
+  const handleDeleteVoucher = (v) => setConfirmDeleteVoucher(v);
+
+  const confirmVoucherDelete = async () => {
+    const v = confirmDeleteVoucher;
+    if (!v) return;
     try {
       if (session && v.id) await supabaseDeleteVoucher(session.access_token, v.id);
       setVouchers((prev) => prev.filter((x) => x.id !== v.id));
+      setConfirmDeleteVoucher(null);
       if (viewingVoucher && viewingVoucher.id === v.id) { setViewingVoucher(null); navigate("/gutscheine"); }
-    } catch (e) { console.error("Delete voucher failed:", e); alert("Löschen fehlgeschlagen: " + (e?.message || e)); }
+    } catch (e) {
+      console.error("Delete voucher failed:", e);
+      setConfirmDeleteVoucher(null);
+      showErrorToast("Löschen fehlgeschlagen: " + (e?.message || e));
+    }
   };
 
   // Look up a voucher by code (scanned or typed) and validate it for redemption.
@@ -2430,6 +2443,22 @@ export default function EphiaInvoice() {
         );
       })()}
 
+      {/* Voucher delete confirmation modal */}
+      {confirmDeleteVoucher && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Gutschein löschen?</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Möchtest Du den Gutschein <span className="font-mono">{confirmDeleteVoucher.code}</span> wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            </p>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button className="px-3 py-1.5 text-xs rounded border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={() => setConfirmDeleteVoucher(null)}>Abbrechen</button>
+              <button className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700" onClick={confirmVoucherDelete}>Löschen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Consent form risk warning modal */}
       {consentWarningPatient && (
         <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
@@ -2487,8 +2516,10 @@ export default function EphiaInvoice() {
 
       {/* Save toast */}
       {saveToast && (
-        <div className="fixed top-16 right-6 z-50 bg-green-600 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+        <div className={`fixed top-16 right-6 z-50 ${toastIsError ? "bg-red-600" : "bg-green-600"} text-white text-sm px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in`}>
+          {toastIsError
+            ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86l-8.6 14.86A1 1 0 002.54 20h18.92a1 1 0 00.85-1.28l-8.6-14.86a1 1 0 00-1.72 0z" /></svg>
+            : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
           {saveToast}
         </div>
       )}
