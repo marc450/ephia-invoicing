@@ -1,0 +1,78 @@
+import React, { useEffect, useState } from "react";
+import QRCode from "qrcode";
+import { fmt, fmtDate } from "../../utils/helpers";
+
+// ═══════════════════ Geschenkgutschein (the gift card itself) ═══════════════════
+// Customer-facing artifact: branded card (EPHIA cream/blue, Roboto) on an A4 page
+// so it prints / shares as PDF cleanly. The QR encodes the plaintext voucher code,
+// which the practice scans in the invoice form to redeem. Offline-friendly: the QR
+// is just the code string, no URL.
+
+export default function VoucherPreview({ practice = {}, voucher = {} }) {
+  const [qrUrl, setQrUrl] = useState("");
+  const code = voucher.code || "";
+  const nennwert = Number(voucher.nennwert) || 0;
+
+  useEffect(() => {
+    if (!code) { setQrUrl(""); return; }
+    let cancelled = false;
+    QRCode.toDataURL(code, { margin: 0, width: 320, errorCorrectionLevel: "M", color: { dark: "#0a1f44", light: "#FAEBE1" } })
+      .then((url) => { if (!cancelled) setQrUrl(url); })
+      .catch(() => { if (!cancelled) setQrUrl(""); });
+    return () => { cancelled = true; };
+  }, [code]);
+
+  const BRAND = "#0066FF";
+  const INK = "#0a1f44";
+
+  const S = {
+    page: { fontFamily: "Roboto, 'Segoe UI', Arial, sans-serif", width: "210mm", minHeight: "297mm", margin: "0 auto", background: "white", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px" },
+    card: { width: "170mm", background: "#FAEBE1", borderRadius: "24px", padding: "48px 52px", color: INK, position: "relative", boxSizing: "border-box" },
+  };
+
+  return (
+    <div id="voucher-preview" style={S.page}>
+      <div style={S.card}>
+        {/* Header: practice identity */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "40px" }}>
+          {practice.logo ? (
+            <img src={practice.logo} alt="Logo" style={{ maxHeight: "54px", maxWidth: "200px", objectFit: "contain" }} />
+          ) : (
+            <div style={{ fontSize: "20px", fontWeight: 700 }}>{practice.name || "Praxis"}</div>
+          )}
+          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", color: BRAND, paddingTop: "6px" }}>
+            Geschenkgutschein
+          </div>
+        </div>
+
+        {/* Value */}
+        <div style={{ marginBottom: "8px", fontSize: "13px", letterSpacing: "1px", textTransform: "uppercase", opacity: 0.6 }}>Wert</div>
+        <div style={{ fontSize: "64px", fontWeight: 700, lineHeight: 1, marginBottom: "40px" }}>
+          {fmt(nennwert)} €
+        </div>
+
+        {/* QR + code */}
+        <div style={{ display: "flex", alignItems: "center", gap: "28px", background: "rgba(255,255,255,0.45)", borderRadius: "16px", padding: "24px 28px", marginBottom: "36px" }}>
+          {qrUrl ? (
+            <img src={qrUrl} alt="QR-Code" style={{ width: "128px", height: "128px", flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: "128px", height: "128px", flexShrink: 0, background: "#fff", borderRadius: "8px" }} />
+          )}
+          <div>
+            <div style={{ fontSize: "12px", letterSpacing: "1px", textTransform: "uppercase", opacity: 0.6, marginBottom: "6px" }}>Gutscheincode</div>
+            <div style={{ fontSize: "26px", fontWeight: 700, fontFamily: "'Roboto Mono', 'Courier New', monospace", letterSpacing: "1px" }}>{code || "—"}</div>
+            {voucher.gueltigBis && (
+              <div style={{ fontSize: "13px", opacity: 0.7, marginTop: "10px" }}>Gültig bis {fmtDate(voucher.gueltigBis)}</div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer note */}
+        <div style={{ fontSize: "12px", lineHeight: 1.6, opacity: 0.75 }}>
+          Einzulösen bei {practice.name || "uns"}{practice.address1 ? `, ${practice.address1}` : ""}.
+          Übertragbar · keine Barauszahlung · gegen Vorlage des Codes.
+        </div>
+      </div>
+    </div>
+  );
+}

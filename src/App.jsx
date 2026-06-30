@@ -8,6 +8,7 @@ import { supabaseFetchProfiles, supabaseUpdateProfile } from "./lib/supabase/pro
 import { supabaseFetchInvoices, supabaseCreateInvoice, supabaseUpdateInvoice, supabaseDeleteInvoice } from "./lib/supabase/invoices";
 import { supabaseFetchDocuments, supabaseCreateDocument, supabaseUpdateDocument, supabaseDeleteDocument, supabaseUpdateDocumentBehandlung } from "./lib/supabase/documents";
 import { supabaseFetchBehandlungen, supabaseCreateBehandlung, supabaseUpdateBehandlung, supabaseDeleteBehandlung } from "./lib/supabase/behandlungen";
+import { supabaseFetchVouchers, supabaseFetchVoucherByCode, supabaseCreateVoucher, supabaseUpdateVoucher, supabaseDeleteVoucher } from "./lib/supabase/vouchers";
 import { migrateInvoicesToDocuments } from "./lib/migration";
 import { supabaseFetchPatients, supabaseDeletePatient } from "./lib/supabase/patients";
 import { supabaseFetchActivityLog, supabaseCreateActivityLog } from "./lib/supabase/activityLog";
@@ -21,7 +22,8 @@ import {
   computePatientHash, getPatientIdentifier
 } from "./lib/crypto";
 import { DEFAULT_PRACTICE, AUTO_LOGOUT_MS, ZUSCHLAEGE, BOTOX_GOA_ITEMS, PUNKTWERT, SACHKOSTEN_INFO, ICD10_CODES, PRIORITY_COUNTRIES, OTHER_COUNTRIES } from "./constants";
-import { parseDE, evalAmount, fmt, fmtDate, buildLineItems, calcWeightedForGesamt, calcGoaBetrag, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, flashOrtField, lookupPlz } from "./utils/helpers";
+import { parseDE, evalAmount, fmt, fmtDate, buildLineItems, calcWeightedForGesamt, calcGoaBetrag, calcGesamt, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, flashOrtField, lookupPlz } from "./utils/helpers";
+import { generateVoucherCode, nextVoucherSeq, createVoucherObject, computeStatus, redeemBlockReason, applyRedemption, restoreRedemption } from "./utils/vouchers";
 import { LoginScreen, SignUpScreen, ResetPasswordScreen, SetNewPasswordScreen } from "./components/auth/AuthScreens";
 import ImpressumPage from "./components/legal/Impressum";
 import DatenschutzPage from "./components/legal/Datenschutz";
@@ -38,6 +40,11 @@ import MobileScaledPreview from "./components/treatment/MobileScaledPreview";
 import SettingsPanel from "./components/settings/SettingsPanel";
 import InvoicePreview from "./components/invoice/InvoicePreview";
 import HonorarvereinbarungPreview from "./components/invoice/HonorarvereinbarungPreview";
+import VoucherListView from "./components/voucher/VoucherListView";
+import VoucherCreateForm from "./components/voucher/VoucherCreateForm";
+import VoucherPreview from "./components/voucher/VoucherPreview";
+import VoucherReceiptPreview from "./components/voucher/VoucherReceiptPreview";
+import VoucherRedeemField from "./components/voucher/VoucherRedeemField";
 import PatientListView from "./components/patients/PatientListView";
 import ExpandableCard from "./components/patients/ExpandableCard";
 import TreatmentDocPreview from "./components/patients/TreatmentDocumentPreview";
@@ -77,10 +84,15 @@ export default function EphiaInvoice() {
   const isListPage = pathname === "/rechnungen" || pathname === "/honorarvereinbarungen" || pathname === "/aufklaerung" || pathname === "/behandlungen";
   const isPreviewPage = (pathname.startsWith("/rechnungen/") || pathname.startsWith("/honorarvereinbarungen/") || pathname.startsWith("/aufklaerung/") || pathname.startsWith("/behandlungen/")) && pathname.split("/")[2] && pathname.split("/")[2] !== "neu";
   const isConsentPage = pathname === "/aufklaerung/neu";
+  const isVoucherListPage = pathname === "/gutscheine";
+  const isVoucherCreatePage = pathname === "/gutscheine/erstellen";
+  const isVoucherPreviewPage = pathname.startsWith("/gutscheine/") && pathname.split("/")[2] && pathname.split("/")[2] !== "erstellen";
   const isKnownRoute = pathname === "/" || pathname === "/patients" || pathname === "/erstellen"
     || pathname === "/agb" || pathname === "/impressum" || pathname === "/datenschutz"
-    || isPatientDetail || isCreatePage || isListPage || isPreviewPage || isConsentPage;
+    || isPatientDetail || isCreatePage || isListPage || isPreviewPage || isConsentPage
+    || isVoucherListPage || isVoucherCreatePage || isVoucherPreviewPage;
   const activeDocId = isPreviewPage ? pathname.split("/")[2] : null;
+  const activeVoucherId = isVoucherPreviewPage ? pathname.split("/")[2] : null;
   const activePatientId = isPatientDetail ? pathname.split("/")[2] : null;
 
   const [patient, setPatient] = useState({ vorname: "", nachname: "", email: "", phone: "", address1: "", address2: "", country: "Deutschland" });
@@ -158,6 +170,13 @@ export default function EphiaInvoice() {
   const [invoices, setInvoices] = useState([]);
   const [behandlungen, setBehandlungen] = useState([]);
   const [activityLog, setActivityLog] = useState([]);
+  const [vouchers, setVouchers] = useState([]);
+  const [viewingVoucher, setViewingVoucher] = useState(null);
+  const [voucherBusy, setVoucherBusy] = useState(false);
+  const [voucherPreviewTab, setVoucherPreviewTab] = useState("karte"); // "karte" | "beleg"
+  const [appliedVoucher, setAppliedVoucher] = useState(null); // decrypted voucher row applied to the invoice being created
+  const [voucherLookupError, setVoucherLookupError] = useState("");
+  const [voucherLooking, setVoucherLooking] = useState(false);
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showAddPatient, setShowAddPatient] = useState(false);
@@ -560,6 +579,22 @@ export default function EphiaInvoice() {
       } catch (err) {
         console.error("Failed to load patients:", err);
       }
+
+      // Load vouchers (encrypted blob + plaintext code/status)
+      try {
+        const voucherRecords = await supabaseFetchVouchers(accessToken, userId);
+        const loadedVouchers = [];
+        for (const rec of voucherRecords) {
+          let vData = rec.data;
+          if (currentMEK && rec.encryption_version >= 1 && rec.iv && typeof vData === "string") {
+            try { vData = await decryptData(vData, rec.iv, currentMEK); }
+            catch (e) { console.error("Failed to decrypt voucher:", rec.id, e); continue; }
+          }
+          loadedVouchers.push({ ...vData, id: rec.id, code: rec.code, _status: rec.status, _createdAt: rec.created_at });
+        }
+        setVouchers(loadedVouchers);
+      } catch (e) { console.error("Failed to load vouchers:", e); }
+
       setDataLoaded(true);
       window.scrollTo(0, 0);
     } catch (err) {
@@ -884,6 +919,10 @@ export default function EphiaInvoice() {
   const hasAbove23 = computedS != null && (computedS.s1 > 2.3 || computedS.s5 > 2.3 || computedS.s267 > 2.3);
   const needsBegruendung = hasAbove23 && effectiveMaxSteigerung <= 3.5;
 
+  // Live voucher deduction for the create-page preview
+  const liveVoucherBetrag = appliedVoucher ? Math.min(Math.round((appliedVoucher.restwert || 0) * 100) / 100, Math.round(gesamt * 100) / 100) : 0;
+  const liveVoucherRedemption = (appliedVoucher && liveVoucherBetrag > 0) ? { code: appliedVoucher.code, betrag: liveVoucherBetrag } : undefined;
+
   // Zuschlag toggle
   const toggleZuschlag = (code) => {
     setSelectedZuschlaege((prev) =>
@@ -1016,10 +1055,97 @@ export default function EphiaInvoice() {
     return supabaseDeleteInvoice(session.access_token, docId);
   };
 
+  // ─── Voucher (Wertgutschein) handlers ───
+  // Encrypt + persist a voucher's data blob and update its plaintext status.
+  const persistVoucher = async (voucherId, voucherData, status) => {
+    let serverData = voucherData, serverIv = null, serverEncVer = null;
+    if (currentMEK) {
+      const enc = await encryptData(voucherData, currentMEK);
+      serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
+    }
+    return supabaseUpdateVoucher(session.access_token, voucherId, serverData, serverIv, serverEncVer, status);
+  };
+
+  const handleNewVoucher = () => { setViewingVoucher(null); navigate("/gutscheine/erstellen"); };
+
+  const handleCreateVoucher = async (form) => {
+    if (!session) return;
+    setVoucherBusy(true);
+    try {
+      const year = new Date().getFullYear();
+      const seq = nextVoucherSeq(vouchers.map((v) => v.code), year);
+      const code = generateVoucherCode(year, seq);
+      const voucherObj = { ...createVoucherObject(form), receiptMeta: form.receiptMeta || {} };
+      const today = new Date().toISOString().slice(0, 10);
+      const status = computeStatus(voucherObj, today);
+      let serverData = voucherObj, serverIv = null, serverEncVer = null;
+      if (currentMEK) {
+        const enc = await encryptData(voucherObj, currentMEK);
+        serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
+      }
+      const created = await supabaseCreateVoucher(session.access_token, user.id, code, status, serverData, serverIv, serverEncVer);
+      const newVoucher = { ...voucherObj, id: created.id, code, _status: status, _createdAt: created.created_at };
+      setVouchers((prev) => [newVoucher, ...prev]);
+      setViewingVoucher(newVoucher);
+      setVoucherPreviewTab("karte");
+      navigate(`/gutscheine/${created.id}`);
+    } catch (e) {
+      console.error("Create voucher failed:", e);
+      alert("Gutschein konnte nicht erstellt werden: " + (e?.message || e));
+    } finally { setVoucherBusy(false); }
+  };
+
+  const handleViewVoucher = (v) => { setViewingVoucher(v); setVoucherPreviewTab("karte"); navigate(`/gutscheine/${v.id}`); };
+
+  const handleDeleteVoucher = async (v) => {
+    if (!window.confirm(`Gutschein ${v.code} wirklich löschen?`)) return;
+    try {
+      if (session && v.id) await supabaseDeleteVoucher(session.access_token, v.id);
+      setVouchers((prev) => prev.filter((x) => x.id !== v.id));
+      if (viewingVoucher && viewingVoucher.id === v.id) { setViewingVoucher(null); navigate("/gutscheine"); }
+    } catch (e) { console.error("Delete voucher failed:", e); alert("Löschen fehlgeschlagen: " + (e?.message || e)); }
+  };
+
+  // Look up a voucher by code (scanned or typed) and validate it for redemption.
+  const handleApplyVoucher = async (code) => {
+    if (!code || !session) return;
+    setVoucherLooking(true); setVoucherLookupError("");
+    try {
+      const row = await supabaseFetchVoucherByCode(session.access_token, user.id, code);
+      if (!row) { setVoucherLookupError("Gutschein nicht gefunden."); setAppliedVoucher(null); return; }
+      let vData = row.data;
+      if (currentMEK && row.encryption_version >= 1 && row.iv && typeof vData === "string") {
+        vData = await decryptData(vData, row.iv, currentMEK);
+      }
+      const voucher = { ...vData, id: row.id, code: row.code, _status: row.status };
+      const today = new Date().toISOString().slice(0, 10);
+      const reason = redeemBlockReason(voucher, today);
+      if (reason) {
+        const msgs = { not_found: "Gutschein nicht gefunden.", storniert: "Gutschein wurde storniert.", eingeloest: "Gutschein ist bereits vollständig eingelöst.", abgelaufen: "Gutschein ist abgelaufen." };
+        setVoucherLookupError(msgs[reason] || "Gutschein nicht einlösbar."); setAppliedVoucher(null); return;
+      }
+      setAppliedVoucher(voucher);
+    } catch (e) {
+      console.error("Voucher lookup failed:", e);
+      setVoucherLookupError("Fehler bei der Gutschein-Suche.");
+    } finally { setVoucherLooking(false); }
+  };
+
+  const handleClearVoucher = () => { setAppliedVoucher(null); setVoucherLookupError(""); };
+
   const handleGenerate = async () => {
     const items = buildLineItems(praeparat, ml, preisProMl, selectedZuschlaege, hvOnlyMode ? [] : sachkosten, computedS, einheit, useBeratungLang, ganzeAmpulle, ampullenpreis);
     const hasHV = hvOnlyMode ? true : (fromHvId ? false : items.some((it) => it.steigerung != null && it.steigerung > 3.5));
     const patientDbId = createForPatient?._raw?.id || createForPatient?.id || null;
+    // Effective invoice total (matches InvoicePreview: targetGesamt overrides when MwSt applies)
+    const genIsAusland = patient.country && patient.country !== "Deutschland";
+    const genIsMedical = indicationType === "medical" && !!diagnose;
+    const genNoMwst = practice.kleinunternehmer || genIsAusland || genIsMedical;
+    const genStdGesamt = calcGesamt(items, practice.kleinunternehmer, genIsAusland, genIsMedical);
+    const genGesamt = (wunschGesamt > 0 && !genNoMwst) ? wunschGesamt : genStdGesamt;
+    const voucherBetrag = (!hvOnlyMode && appliedVoucher)
+      ? Math.min(Math.round((appliedVoucher.restwert || 0) * 100) / 100, Math.round(genGesamt * 100) / 100)
+      : 0;
     const entry = {
       id: amendingId || Date.now(),
       patient: { ...patient },
@@ -1050,6 +1176,9 @@ export default function EphiaInvoice() {
       _fromHvId: fromHvId || undefined,
       _kleinunternehmer: !!practice.kleinunternehmer,
       _practice: { ...practice, logo: practice.logo || "" },
+      voucherRedemption: (!hvOnlyMode && appliedVoucher && voucherBetrag > 0)
+        ? { voucherId: appliedVoucher.id, code: appliedVoucher.code, betrag: voucherBetrag }
+        : undefined,
       savedAt: new Date().toISOString(),
     };
 
@@ -1074,6 +1203,18 @@ export default function EphiaInvoice() {
           setInvoices([newEntry, ...invoices]);
           setViewingInvoice(newEntry);
           logActivity(genPatientId, genDocType === "hv" ? "hv" : "rechnung", created.id, "created", `${genDocType === "hv" ? "Honorarvereinbarung" : "Rechnung"} ${entry.invoiceMeta?.nummer || ""} erstellt`);
+
+          // Redeem the applied voucher now that the invoice is saved (new invoices only)
+          if (appliedVoucher && voucherBetrag > 0) {
+            try {
+              const datum = entry.invoiceMeta?.datum || new Date().toISOString().slice(0, 10);
+              const { voucher: updatedV } = applyRedemption(appliedVoucher, { invoiceId: created.id, gesamt: voucherBetrag, datum });
+              const newStatus = computeStatus(updatedV, new Date().toISOString().slice(0, 10));
+              await persistVoucher(appliedVoucher.id, updatedV, newStatus);
+              setVouchers((prev) => prev.map((v) => v.id === appliedVoucher.id ? { ...v, ...updatedV, _status: newStatus } : v));
+              setAppliedVoucher(null); setVoucherLookupError("");
+            } catch (e) { console.error("Voucher redemption failed:", e); }
+          }
         }
 
         // Upsert patient (encrypted: manual find-then-insert/update)
@@ -1195,6 +1336,7 @@ export default function EphiaInvoice() {
     setCreateForPatient(null);
     setIndicationType("aesthetic");
     setDiagnose("");
+    setAppliedVoucher(null); setVoucherLookupError("");
     setShowIndicationModal(true);
     navigate("/erstellen");
   };
@@ -1288,6 +1430,7 @@ export default function EphiaInvoice() {
     setMarkAsPaid(false);
     setHvOnlyMode(false);
     setAmendingId(null);
+    setAppliedVoucher(null); setVoucherLookupError("");
     setFromHvId(null);
     setHvBaseGesamt(null);
     setHvBaseProductCost(null);
@@ -1354,6 +1497,23 @@ export default function EphiaInvoice() {
         alert("Fehler beim Löschen: " + err.message);
         return;
       }
+    }
+
+    // Storno re-credit: if this invoice redeemed a voucher, restore exactly that betrag
+    if (session && toDelete?.voucherRedemption?.code && toDelete?._supabaseId) {
+      try {
+        const row = await supabaseFetchVoucherByCode(session.access_token, user.id, toDelete.voucherRedemption.code);
+        if (row) {
+          let vData = row.data;
+          if (currentMEK && row.encryption_version >= 1 && row.iv && typeof vData === "string") vData = await decryptData(vData, row.iv, currentMEK);
+          const { restored, voucher: restoredV } = restoreRedemption(vData, toDelete._supabaseId);
+          if (restored > 0) {
+            const newStatus = computeStatus(restoredV, new Date().toISOString().slice(0, 10));
+            await persistVoucher(row.id, restoredV, newStatus);
+            setVouchers((prev) => prev.map((v) => v.id === row.id ? { ...v, ...restoredV, _status: newStatus } : v));
+          }
+        }
+      } catch (e) { console.error("Voucher restore on delete failed:", e); }
     }
 
     trackEvent("document_deleted", { type: toDelete?._hvOnly ? "hv" : toDelete?._standalone ? "treatment_doc" : "invoice" }, session?.access_token);
@@ -2219,6 +2379,12 @@ export default function EphiaInvoice() {
             >
               <span className="sm:hidden"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></span><span className="hidden sm:inline">Dokumente</span>
             </button>)}
+            <button
+              className={`text-xs px-2 sm:px-3 py-1.5 rounded border transition ${isVoucherListPage || isVoucherCreatePage || isVoucherPreviewPage ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 hover:text-gray-700 border-[#DFE3EB] hover:bg-gray-50"}`}
+              onClick={() => navigate("/gutscheine")}
+            >
+              <span className="sm:hidden"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-6V2" /></svg></span><span className="hidden sm:inline">Gutscheine</span>
+            </button>
             <div className="border-l border-[#DFE3EB] h-5 mx-0.5 sm:mx-1 hidden sm:block"></div>
             <button
               className="text-xs px-2 sm:px-3 py-1.5 rounded border transition text-gray-500 hover:text-gray-700 border-[#DFE3EB] hover:bg-gray-50"
@@ -2836,7 +3002,17 @@ export default function EphiaInvoice() {
             </div>
             )}
 
-
+            {/* ── Gutschein einlösen ── */}
+            {!hvOnlyMode && (
+              <VoucherRedeemField
+                applied={appliedVoucher}
+                gesamt={gesamt}
+                onApply={handleApplyVoucher}
+                onClear={handleClearVoucher}
+                error={voucherLookupError}
+                looking={voucherLooking}
+              />
+            )}
 
             {/* ─── Zuschläge ─── */}
             <div className="mb-6 pb-5 border-b border-gray-100">
@@ -3014,6 +3190,7 @@ export default function EphiaInvoice() {
                     lineItems={liveItems}
                     begruendung={needsBegruendung ? (begruendung || "Überdurchschnittlicher Zeitaufwand und erhöhte Schwierigkeit aufgrund individueller anatomischer Gegebenheiten.") : ""}
                     targetGesamt={wunschGesamt > 0 ? wunschGesamt : undefined}
+                    voucherRedemption={liveVoucherRedemption}
                   />
                 )}
               </PreviewScaler>
@@ -3070,6 +3247,7 @@ export default function EphiaInvoice() {
                     lineItems={liveItems}
                     begruendung={needsBegruendung ? (begruendung || "Überdurchschnittlicher Zeitaufwand und erhöhte Schwierigkeit aufgrund individueller anatomischer Gegebenheiten.") : ""}
                     targetGesamt={wunschGesamt > 0 ? wunschGesamt : undefined}
+                    voucherRedemption={liveVoucherRedemption}
                   />
                 )}
               </MobileScaledPreview>
@@ -3146,6 +3324,64 @@ export default function EphiaInvoice() {
           );
         })()}
 
+        {/* ═══ VOUCHER LIST ═══ */}
+        {isVoucherListPage && (
+          <VoucherListView
+            vouchers={vouchers}
+            onNew={handleNewVoucher}
+            onView={handleViewVoucher}
+            onDelete={handleDeleteVoucher}
+            onBack={() => navigate("/patients")}
+          />
+        )}
+
+        {/* ═══ VOUCHER CREATE ═══ */}
+        {isVoucherCreatePage && (() => {
+          const lastNum = vouchers.map((v) => v.receiptMeta?.nummer).filter(Boolean)[0];
+          const suggested = lastNum ? (nextInvoiceNumber(lastNum) || "") : "";
+          return (
+            <VoucherCreateForm
+              suggestedNummer={suggested}
+              practiceOrt=""
+              onCreate={handleCreateVoucher}
+              onCancel={() => navigate("/gutscheine")}
+              busy={voucherBusy}
+            />
+          );
+        })()}
+
+        {/* ═══ VOUCHER PREVIEW (Karte / Beleg) ═══ */}
+        {isVoucherPreviewPage && (() => {
+          const voucher = (viewingVoucher && viewingVoucher.id === activeVoucherId) ? viewingVoucher : vouchers.find((v) => v.id === activeVoucherId);
+          if (!voucher) return <div className="max-w-xl mx-auto px-4 py-16 text-center text-gray-400 text-sm">Gutschein nicht gefunden.</div>;
+          const receiptMeta = voucher.receiptMeta || {};
+          const isKarte = voucherPreviewTab === "karte";
+          const elementId = isKarte ? "voucher-preview" : "voucher-receipt-preview";
+          const filename = isKarte ? `Gutschein_${voucher.code}.pdf` : `Beleg_${voucher.code}.pdf`;
+          return (
+            <div className="max-w-4xl mx-auto px-3 sm:px-6">
+              <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+                <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => navigate("/gutscheine")}>← Zurück zu Gutscheine</button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex rounded-lg border border-[#DFE3EB] overflow-hidden">
+                    <button className={`px-3 py-2 text-xs ${isKarte ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-50"}`} onClick={() => setVoucherPreviewTab("karte")}>Gutschein</button>
+                    <button className={`px-3 py-2 text-xs ${!isKarte ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-50"}`} onClick={() => setVoucherPreviewTab("beleg")}>Beleg (Rechnung)</button>
+                  </div>
+                  <button className="px-3 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={() => printElement(elementId, filename)}>Drucken</button>
+                  <button className="px-3 py-2 text-xs rounded-lg text-white bg-[#0066FF] hover:opacity-90" onClick={() => shareOrDownloadPDF(elementId, filename)}>PDF / Teilen</button>
+                </div>
+              </div>
+              <div className="bg-gray-100 rounded-xl p-3 sm:p-6 overflow-auto">
+                <PreviewScaler>
+                  {isKarte
+                    ? <VoucherPreview practice={practice} voucher={voucher} />
+                    : <VoucherReceiptPreview practice={practice} purchaser={{ name: voucher.purchaserName }} voucher={voucher} receiptMeta={receiptMeta} />}
+                </PreviewScaler>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ═══ ONBOARDING STEP 0: WELCOME ═══ */}
         {onboardingStep === "welcome" && (pathname === "/patients" || pathname === "/") && dataLoaded && !showSettings && (
           <div className="max-w-lg mx-auto mt-12 sm:mt-20 px-4">
@@ -3209,7 +3445,7 @@ export default function EphiaInvoice() {
               <div className="px-6 py-5">
                 <div className="flex items-center gap-1.5 mb-3">
                   <h2 className="text-sm font-semibold text-gray-700">Patient:in anlegen</h2>
-                  <InfoTooltip wide>Alle Patient:innendaten werden Ende-zu-Ende-verschlüsselt (AES-256-GCM) — die Verschlüsselung erfolgt direkt in Deinem Browser, bevor die Daten unseren Server erreichen. EPHIA hat zu keinem Zeitpunkt Zugriff auf die Klartextdaten. Damit erfüllen wir die Anforderungen der DSGVO an den Schutz personenbezogener Gesundheitsdaten (Art. 9, 32 DSGVO).</InfoTooltip>
+                  <InfoTooltip wide>Alle Patient:innendaten werden Ende-zu-Ende-verschlüsselt (AES-256-GCM) die Verschlüsselung erfolgt direkt in Deinem Browser, bevor die Daten unseren Server erreichen. EPHIA hat zu keinem Zeitpunkt Zugriff auf die Klartextdaten. Damit erfüllen wir die Anforderungen der DSGVO an den Schutz personenbezogener Gesundheitsdaten (Art. 9, 32 DSGVO).</InfoTooltip>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
@@ -3448,7 +3684,7 @@ export default function EphiaInvoice() {
                 >
                   Patient:in anlegen
                 </button>
-                <InfoTooltip wide>Alle Patient:innendaten werden Ende-zu-Ende-verschlüsselt (AES-256-GCM) — die Verschlüsselung erfolgt direkt in Deinem Browser, bevor die Daten unseren Server erreichen. EPHIA hat zu keinem Zeitpunkt Zugriff auf die Klartextdaten. Damit erfüllen wir die Anforderungen der DSGVO an den Schutz personenbezogener Gesundheitsdaten (Art. 9, 32 DSGVO).</InfoTooltip>
+                <InfoTooltip wide>Alle Patient:innendaten werden Ende-zu-Ende-verschlüsselt (AES-256-GCM) die Verschlüsselung erfolgt direkt in Deinem Browser, bevor die Daten unseren Server erreichen. EPHIA hat zu keinem Zeitpunkt Zugriff auf die Klartextdaten. Damit erfüllen wir die Anforderungen der DSGVO an den Schutz personenbezogener Gesundheitsdaten (Art. 9, 32 DSGVO).</InfoTooltip>
               </div>
             </div>
           </div>
@@ -3890,7 +4126,7 @@ export default function EphiaInvoice() {
                     <HonorarvereinbarungPreview practice={viewPractice} patient={(linkedHV || viewingInvoice).patient} invoiceMeta={(linkedHV || viewingInvoice).invoiceMeta} lineItems={(linkedHV || viewingInvoice).lineItems} isStandalone={!!(linkedHV ? linkedHV._hvOnly : viewingInvoice._hvOnly)} signatures={(linkedHV || viewingInvoice)._signatures} onSignatureClick={() => setShowSignatureModal(true)} onDoctorSign={(linkedHV || viewingInvoice)._signatures?.patient && !(linkedHV || viewingInvoice)._signatures?.doctor ? () => setShowHvDoctorSign(true) : undefined} />
                   )
                 ) : (
-                  <InvoicePreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} begruendung={viewingInvoice.begruendung} targetGesamt={viewingInvoice.targetGesamt} />
+                  <InvoicePreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} begruendung={viewingInvoice.begruendung} targetGesamt={viewingInvoice.targetGesamt} voucherRedemption={viewingInvoice.voucherRedemption} />
                 )}
               </div>
               {previewTab === "rechnung" && !isStandaloneTD && viewingInvoice.attachTreatmentPdf && viewingInvoice.treatmentDoc && (
@@ -3939,7 +4175,7 @@ export default function EphiaInvoice() {
                       <HonorarvereinbarungPreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} isStandalone={!!viewingInvoice._hvOnly} signatures={viewingInvoice._signatures} onSignatureClick={() => setShowSignatureModal(true)} onDoctorSign={viewingInvoice._signatures?.patient && !viewingInvoice._signatures?.doctor ? () => setShowHvDoctorSign(true) : undefined} />
                     )
                   ) : (
-                    <InvoicePreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} begruendung={viewingInvoice.begruendung} targetGesamt={viewingInvoice.targetGesamt} />
+                    <InvoicePreview practice={viewPractice} patient={viewingInvoice.patient} invoiceMeta={viewingInvoice.invoiceMeta} lineItems={viewingInvoice.lineItems} begruendung={viewingInvoice.begruendung} targetGesamt={viewingInvoice.targetGesamt} voucherRedemption={viewingInvoice.voucherRedemption} />
                   )}
                 </div>
                 {previewTab === "rechnung" && !isStandaloneTD && viewingInvoice.attachTreatmentPdf && viewingInvoice.treatmentDoc && (

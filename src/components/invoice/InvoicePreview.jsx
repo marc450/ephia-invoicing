@@ -3,7 +3,7 @@ import { fmtDate, fmt, fmtPhone } from "../../utils/helpers";
 
 // ═══════════════════ Invoice Preview ═══════════════════
 
-export default function InvoicePreview({ practice, patient: rawPatient, invoiceMeta, lineItems, begruendung, targetGesamt }) {
+export default function InvoicePreview({ practice, patient: rawPatient, invoiceMeta, lineItems, begruendung, targetGesamt, voucherRedemption }) {
   const patient = rawPatient || {};
   const zwischensumme = lineItems.reduce((s, it) => s + it.betrag, 0);
   const isKlein = practice.kleinunternehmer;
@@ -120,6 +120,20 @@ export default function InvoicePreview({ practice, patient: rawPatient, invoiceM
             <td colSpan={4} style={{ padding: "5px 6px", textAlign: "right" }}>Gesamtbetrag</td>
             <td style={{ padding: "5px 0 5px 6px", textAlign: "right" }}>{fmt(gesamt)}</td>
           </tr>
+          {voucherRedemption && voucherRedemption.betrag > 0 && (
+            <tr>
+              <td colSpan={4} style={{ padding: "5px 6px", textAlign: "right" }}>
+                Abzüglich Wertgutschein {voucherRedemption.code ? `(${voucherRedemption.code})` : ""}
+              </td>
+              <td style={{ padding: "5px 0 5px 6px", textAlign: "right" }}>−{fmt(voucherRedemption.betrag)}</td>
+            </tr>
+          )}
+          {voucherRedemption && voucherRedemption.betrag > 0 && (
+            <tr style={{ fontWeight: "700", borderTop: "1.5px solid #222" }}>
+              <td colSpan={4} style={{ padding: "5px 6px", textAlign: "right" }}>Zahlbetrag</td>
+              <td style={{ padding: "5px 0 5px 6px", textAlign: "right" }}>{fmt(Math.round((gesamt - voucherRedemption.betrag) * 100) / 100)}</td>
+            </tr>
+          )}
           {isKlein && (
             <tr>
               <td colSpan={5} style={{ padding: "8px 0 0 0", fontSize: "9px", color: "#888" }}>
