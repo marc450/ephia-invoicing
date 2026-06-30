@@ -24,7 +24,7 @@ import {
 import { DEFAULT_PRACTICE, AUTO_LOGOUT_MS, ZUSCHLAEGE, BOTOX_GOA_ITEMS, PUNKTWERT, SACHKOSTEN_INFO, ICD10_CODES, PRIORITY_COUNTRIES, OTHER_COUNTRIES } from "./constants";
 import { parseDE, evalAmount, fmt, fmtDate, buildLineItems, calcWeightedForGesamt, calcGoaBetrag, calcGesamt, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, flashOrtField, lookupPlz } from "./utils/helpers";
 import { subscribeToast, showToast } from "./utils/toast";
-import { generateVoucherCode, nextVoucherSeq, createVoucherObject, computeStatus, redeemBlockReason, applyRedemption, restoreRedemption } from "./utils/vouchers";
+import { generateVoucherCode, createVoucherObject, computeStatus, redeemBlockReason, applyRedemption, restoreRedemption } from "./utils/vouchers";
 import { LoginScreen, SignUpScreen, ResetPasswordScreen, SetNewPasswordScreen } from "./components/auth/AuthScreens";
 import ImpressumPage from "./components/legal/Impressum";
 import DatenschutzPage from "./components/legal/Datenschutz";
@@ -1083,9 +1083,6 @@ export default function EphiaInvoice() {
     if (!session) return;
     setVoucherBusy(true);
     try {
-      const year = new Date().getFullYear();
-      const seq = nextVoucherSeq(vouchers.map((v) => v.code), year);
-      const code = generateVoucherCode(year, seq);
       const voucherObj = { ...createVoucherObject(form), receiptMeta: form.receiptMeta || {} };
       const today = new Date().toISOString().slice(0, 10);
       const status = computeStatus(voucherObj, today);
@@ -1094,7 +1091,20 @@ export default function EphiaInvoice() {
         const enc = await encryptData(voucherObj, currentMEK);
         serverData = enc.ciphertext; serverIv = enc.iv; serverEncVer = 2;
       }
-      const created = await supabaseCreateVoucher(session.access_token, user.id, code, status, serverData, serverIv, serverEncVer);
+      // Generate a fully random code; retry on the (astronomically rare) unique
+      // collision so a duplicate can never silently fail.
+      let created = null, code = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        code = generateVoucherCode();
+        try {
+          created = await supabaseCreateVoucher(session.access_token, user.id, code, status, serverData, serverIv, serverEncVer);
+          break;
+        } catch (e) {
+          const dup = /duplicate|unique|conflict|23505/i.test(String(e?.message || e));
+          if (dup && attempt < 4) continue;
+          throw e;
+        }
+      }
       const newVoucher = { ...voucherObj, id: created.id, code, _status: status, _createdAt: created.created_at };
       setVouchers((prev) => [newVoucher, ...prev]);
       setViewingVoucher(newVoucher);

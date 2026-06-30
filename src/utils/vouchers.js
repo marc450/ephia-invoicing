@@ -23,35 +23,30 @@ export const VOUCHER_STATUS = {
   ABGELAUFEN: "abgelaufen",
 };
 
-// Unambiguous alphabet — no 0/O/1/I/L to avoid hand-keying mistakes.
+// Unambiguous alphabet — no 0/O/1/I/L to avoid hand-keying mistakes (31 chars).
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
-function randomSuffix(len = 4) {
-  const bytes = crypto.getRandomValues(new Uint8Array(len));
-  let out = "";
-  for (let i = 0; i < len; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return out;
-}
-
-// Build a human-friendly, collision-resistant code: GS-2026-0007-7K3F
-// `seq` is the per-year running number (caller derives it from existing codes);
-// the random suffix guards against races and guessing.
-export function generateVoucherCode(year, seq) {
-  const yr = String(year);
-  const seqStr = String(seq).padStart(4, "0");
-  return `GS-${yr}-${seqStr}-${randomSuffix(4)}`;
-}
-
-// Next sequence number for a given year, from the list of existing plaintext codes.
-export function nextVoucherSeq(existingCodes, year) {
-  const prefix = `GS-${year}-`;
-  let max = 0;
-  for (const code of existingCodes || []) {
-    if (typeof code !== "string" || !code.startsWith(prefix)) continue;
-    const m = code.slice(prefix.length).match(/^(\d+)/);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+// Cryptographically random characters using rejection sampling, which avoids
+// the modulo bias a plain `byte % 31` would introduce.
+function randomChars(n) {
+  const out = [];
+  const limit = Math.floor(256 / CODE_ALPHABET.length) * CODE_ALPHABET.length; // 248
+  while (out.length < n) {
+    const buf = crypto.getRandomValues(new Uint8Array(n - out.length));
+    for (let i = 0; i < buf.length && out.length < n; i++) {
+      if (buf[i] < limit) out.push(CODE_ALPHABET[buf[i] % CODE_ALPHABET.length]);
+    }
   }
-  return max + 1;
+  return out.join("");
+}
+
+// Build an unguessable voucher code: a "GS-" marker plus 16 fully random chars
+// in 4 readable groups, e.g. GS-7K3F-9QXM-2WHD-5RBT. That is 31^16 ≈ 8e23
+// (~79 bits) of entropy, with no sequential or date part, so codes can be
+// neither enumerated nor brute-forced.
+export function generateVoucherCode() {
+  const b = randomChars(16);
+  return `GS-${b.slice(0, 4)}-${b.slice(4, 8)}-${b.slice(8, 12)}-${b.slice(12, 16)}`;
 }
 
 function round2(n) {
