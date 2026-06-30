@@ -1,17 +1,21 @@
 import React, { useState } from "react";
-import { parseDE } from "../../utils/helpers";
+import { parseDE, fmtDate } from "../../utils/helpers";
 
-// Default validity: end of the 3rd year after issue (mirrors the regelmäßige
-// Verjährung of 3 years from the end of the year the voucher was issued).
-function defaultGueltigBis() {
+// Minimum / default validity: end of the 3rd year after issue. This mirrors the
+// regelmäßige Verjährung of 3 years from the end of the year of issue
+// (§§ 195, 199 BGB). Shorter periods are an unangemessene Benachteiligung under
+// § 307 BGB and generally unwirksam, so we enforce this as a hard floor; the
+// issuer may extend it but not undercut it.
+function minGueltigBis() {
   const y = new Date().getFullYear() + 3;
   return `${y}-12-31`;
 }
 
 export default function VoucherCreateForm({ suggestedNummer = "", practiceOrt = "", onCreate, onCancel, busy }) {
   const today = new Date().toISOString().slice(0, 10);
+  const minDate = minGueltigBis();
   const [nennwertStr, setNennwertStr] = useState("");
-  const [gueltigBis, setGueltigBis] = useState(defaultGueltigBis());
+  const [gueltigBis, setGueltigBis] = useState(minDate);
   const [purchaserName, setPurchaserName] = useState("");
   const [purchaserEmail, setPurchaserEmail] = useState("");
   const [anlass, setAnlass] = useState("");
@@ -24,6 +28,10 @@ export default function VoucherCreateForm({ suggestedNummer = "", practiceOrt = 
 
   const submit = () => {
     if (!(nennwert > 0)) { setError("Bitte einen Gutscheinwert größer als 0 eingeben."); return; }
+    if (gueltigBis && gueltigBis < minDate) {
+      setError(`Das Gültigkeitsdatum darf nicht vor dem ${fmtDate(minDate)} liegen. Gutscheine müssen mindestens bis zum Ablauf der regelmäßigen Verjährung (3 Jahre ab Jahresende, §§ 195, 199 BGB) gültig sein; kürzere Fristen sind nach § 307 BGB unwirksam. Eine längere Gültigkeit ist möglich.`);
+      return;
+    }
     setError("");
     onCreate({
       nennwert,
@@ -53,7 +61,10 @@ export default function VoucherCreateForm({ suggestedNummer = "", practiceOrt = 
 
         <div>
           <label className={label}>Gültig bis</label>
-          <input className={input} type="date" value={gueltigBis} onChange={(e) => setGueltigBis(e.target.value)} />
+          <input className={input} type="date" min={minDate} value={gueltigBis} onChange={(e) => setGueltigBis(e.target.value)} />
+          <p className="text-[11px] text-gray-400 mt-1">
+            Mindestens {fmtDate(minDate)} (3 Jahre ab Jahresende, §§ 195, 199 BGB). Eine längere Gültigkeit ist möglich, eine kürzere nach § 307 BGB unwirksam.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
