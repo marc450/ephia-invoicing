@@ -2634,7 +2634,7 @@ export default function EphiaInvoice() {
         </div>
       )}
 
-      {pathname !== "/agb" && pathname !== "/impressum" && pathname !== "/datenschutz" && !isConsentPage && <div className={`mx-auto py-3 sm:py-5 ${isPatientDetail ? "max-w-full px-4 sm:px-6 lg:px-8" : isCreatePage ? "max-w-7xl px-3 sm:px-6" : isListPage || pathname === "/patients" || pathname === "/" ? "max-w-6xl px-3 sm:px-6" : isPreviewPage ? "max-w-5xl px-3 sm:px-6" : "max-w-3xl px-3 sm:px-6"}`}>
+      {pathname !== "/agb" && pathname !== "/impressum" && pathname !== "/datenschutz" && !isConsentPage && <div className={`mx-auto py-3 sm:py-5 ${isPatientDetail ? "max-w-full px-4 sm:px-6 lg:px-8" : isCreatePage ? "max-w-7xl px-3 sm:px-6" : isListPage || pathname === "/patients" || pathname === "/" ? "max-w-6xl px-3 sm:px-6" : isPreviewPage || isVoucherPreviewPage ? "max-w-5xl px-3 sm:px-6" : "max-w-3xl px-3 sm:px-6"}`}>
         {/* ═══ CREATE PAGE ═══ */}
         {(isCreatePage || patientCreateModal === "rechnung" || patientCreateModal === "hv") && (
           <>
@@ -3407,16 +3407,38 @@ export default function EphiaInvoice() {
           const elementId = isKarte ? "voucher-preview" : "voucher-receipt-preview";
           const filename = isKarte ? `Gutschein_${voucher.code}.pdf` : `Beleg_${voucher.code}.pdf`;
           return (
-            <div className="max-w-4xl mx-auto px-3 sm:px-6">
-              <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-                <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => navigate("/gutscheine")}>← Zurück zu Gutscheine</button>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex rounded-lg border border-[#DFE3EB] overflow-hidden">
-                    <button className={`px-3 py-2 text-xs ${isKarte ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-50"}`} onClick={() => setVoucherPreviewTab("karte")}>Gutschein</button>
-                    <button className={`px-3 py-2 text-xs ${!isKarte ? "bg-gray-800 text-white" : "text-gray-500 hover:bg-gray-50"}`} onClick={() => setVoucherPreviewTab("beleg")}>Beleg (Rechnung)</button>
+            <div>
+              {/* Toolbar - aligned with the document preview UIs */}
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <button className="px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition" onClick={() => navigate("/gutscheine")}>
+                    ← Zurück
+                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs rounded-lg border transition ${isKarte ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 border-[#DFE3EB] hover:bg-gray-50"}`}
+                      onClick={() => setVoucherPreviewTab("karte")}
+                    >
+                      Gutschein
+                    </button>
+                    <button
+                      className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs rounded-lg border transition ${!isKarte ? "bg-gray-800 text-white border-gray-800" : "text-gray-500 border-[#DFE3EB] hover:bg-gray-50"}`}
+                      onClick={() => setVoucherPreviewTab("beleg")}
+                    >
+                      Beleg (Rechnung)
+                    </button>
                   </div>
-                  <button className="px-3 py-2 text-xs rounded-lg border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={() => printElement(elementId, filename)}>Drucken</button>
-                  <button className="px-3 py-2 text-xs rounded-lg text-white bg-[#0066FF] hover:opacity-90" onClick={() => shareOrDownloadPDF(elementId, filename)}>PDF / Teilen</button>
+                </div>
+                <div className="flex gap-1.5">
+                  <button className="p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition sm:hidden" onClick={() => shareOrDownloadPDF(elementId, filename)} title="Teilen">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                  </button>
+                  <button className="p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition hidden sm:block" onClick={() => shareOrDownloadPDF(elementId, filename)} title="PDF herunterladen">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>
+                  </button>
+                  <button className="p-2 rounded-lg border border-[#DFE3EB] text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition" onClick={() => printElement(elementId, filename)} title="Drucken">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                  </button>
                 </div>
               </div>
               <div className="bg-gray-100 rounded-xl p-3 sm:p-6 overflow-auto">
