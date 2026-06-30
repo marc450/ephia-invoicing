@@ -24,10 +24,14 @@ export default function VoucherPreview({ practice = {}, voucher = {} }) {
 
   const BRAND = "#0066FF";
   const INK = "#0a1f44";
+  const FONT = "Roboto, 'Segoe UI', Arial, sans-serif";
+
+  // One shared eyebrow-label style so every uppercase caption matches.
+  const label = { fontSize: "11px", fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase" };
 
   const S = {
-    page: { fontFamily: "Roboto, 'Segoe UI', Arial, sans-serif", width: "210mm", minHeight: "297mm", margin: "0 auto", background: "white", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px" },
-    card: { width: "170mm", background: "#FAEBE1", borderRadius: "24px", padding: "48px 52px", color: INK, position: "relative", boxSizing: "border-box" },
+    page: { fontFamily: FONT, width: "210mm", minHeight: "297mm", margin: "0 auto", background: "white", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px" },
+    card: { width: "170mm", background: "#FAEBE1", borderRadius: "24px", padding: "48px 52px", color: INK, position: "relative", boxSizing: "border-box", fontFamily: FONT },
   };
 
   return (
@@ -40,13 +44,13 @@ export default function VoucherPreview({ practice = {}, voucher = {} }) {
           ) : (
             <div style={{ fontSize: "20px", fontWeight: 700 }}>{practice.name || "Praxis"}</div>
           )}
-          <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", color: BRAND, paddingTop: "6px" }}>
+          <div style={{ ...label, color: BRAND, paddingTop: "6px" }}>
             Geschenkgutschein
           </div>
         </div>
 
         {/* Value */}
-        <div style={{ marginBottom: "8px", fontSize: "13px", letterSpacing: "1px", textTransform: "uppercase", opacity: 0.6 }}>Wert</div>
+        <div style={{ ...label, opacity: 0.55, marginBottom: "8px" }}>Wert</div>
         <div style={{ fontSize: "64px", fontWeight: 700, lineHeight: 1, marginBottom: "40px" }}>
           {fmt(nennwert)} €
         </div>
@@ -59,10 +63,10 @@ export default function VoucherPreview({ practice = {}, voucher = {} }) {
             <div style={{ width: "128px", height: "128px", flexShrink: 0, background: "#fff", borderRadius: "8px" }} />
           )}
           <div>
-            <div style={{ fontSize: "12px", letterSpacing: "1px", textTransform: "uppercase", opacity: 0.6, marginBottom: "6px" }}>Gutscheincode</div>
-            <div style={{ fontSize: "26px", fontWeight: 700, fontFamily: "'Roboto Mono', 'Courier New', monospace", letterSpacing: "1px" }}>{code || "—"}</div>
+            <div style={{ ...label, opacity: 0.55, marginBottom: "6px" }}>Gutscheincode</div>
+            <div style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "1px" }}>{code || "—"}</div>
             {voucher.gueltigBis && (
-              <div style={{ fontSize: "13px", opacity: 0.7, marginTop: "10px" }}>Gültig bis {fmtDate(voucher.gueltigBis)}</div>
+              <div style={{ fontSize: "13px", fontWeight: 400, opacity: 0.7, marginTop: "10px" }}>Gültig bis {fmtDate(voucher.gueltigBis)}</div>
             )}
           </div>
         </div>
@@ -70,10 +74,10 @@ export default function VoucherPreview({ practice = {}, voucher = {} }) {
         {/* CTA: how to book an appointment */}
         {(practice.phone || practice.email) && (
           <div style={{ background: BRAND, color: "#fff", borderRadius: "16px", padding: "22px 28px", marginBottom: "28px" }}>
-            <div style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", opacity: 0.9, marginBottom: "12px" }}>
+            <div style={{ ...label, opacity: 0.9, marginBottom: "12px" }}>
               Jetzt Termin vereinbaren
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 32px", fontSize: "18px", fontWeight: 600 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 32px", fontSize: "17px", fontWeight: 600 }}>
               {practice.phone && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "9px" }}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
@@ -91,9 +95,9 @@ export default function VoucherPreview({ practice = {}, voucher = {} }) {
         )}
 
         {/* Footer note */}
-        <div style={{ fontSize: "12px", lineHeight: 1.6, opacity: 0.75 }}>
+        <div style={{ fontSize: "12px", fontWeight: 400, lineHeight: 1.6, opacity: 0.7 }}>
           Einzulösen bei {practice.name || "uns"}{practice.address1 ? `, ${practice.address1}` : ""}.
-          Übertragbar · keine Barauszahlung · gegen Vorlage des Codes.
+          Übertragbar · keine Barauszahlung.
         </div>
       </div>
     </div>
