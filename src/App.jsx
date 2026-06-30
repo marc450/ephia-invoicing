@@ -23,6 +23,7 @@ import {
 } from "./lib/crypto";
 import { DEFAULT_PRACTICE, AUTO_LOGOUT_MS, ZUSCHLAEGE, BOTOX_GOA_ITEMS, PUNKTWERT, SACHKOSTEN_INFO, ICD10_CODES, PRIORITY_COUNTRIES, OTHER_COUNTRIES } from "./constants";
 import { parseDE, evalAmount, fmt, fmtDate, buildLineItems, calcWeightedForGesamt, calcGoaBetrag, calcGesamt, parsePlzOrt, combinePlzOrt, nextInvoiceNumber, toDE, flashOrtField, lookupPlz } from "./utils/helpers";
+import { subscribeToast, showToast } from "./utils/toast";
 import { generateVoucherCode, nextVoucherSeq, createVoucherObject, computeStatus, redeemBlockReason, applyRedemption, restoreRedemption } from "./utils/vouchers";
 import { LoginScreen, SignUpScreen, ResetPasswordScreen, SetNewPasswordScreen } from "./components/auth/AuthScreens";
 import ImpressumPage from "./components/legal/Impressum";
@@ -193,7 +194,13 @@ export default function EphiaInvoice() {
   const [saveToast, setSaveToast] = useState("");  // empty = hidden, string = message
   const [toastIsError, setToastIsError] = useState(false); // red error variant of the toast
   // Show an app-native error toast (never a browser alert).
-  const showErrorToast = (msg) => { setToastIsError(true); setSaveToast(msg); setTimeout(() => { setSaveToast(""); setToastIsError(false); }, 4000); };
+  const showErrorToast = (msg) => showToast(msg, { error: true });
+  // Render any toast raised from anywhere in the app (incl. child components).
+  useEffect(() => subscribeToast(({ message, error = false, duration = 4000 }) => {
+    setToastIsError(!!error);
+    setSaveToast(message);
+    setTimeout(() => { setSaveToast(""); setToastIsError(false); }, duration);
+  }), []);
   const docsMigrated = useRef(false); // true after docs_migration_version >= 1
 
   // ─── Sync selectedPatient from URL when navigating directly to /patients/:id ───
@@ -1010,7 +1017,7 @@ export default function EphiaInvoice() {
         }
       } catch (err) {
         console.error("Failed to save practice settings:", err);
-        alert("Fehler beim Speichern: " + err.message);
+        showErrorToast("Fehler beim Speichern: " + err.message);
       }
     }
   };
@@ -1298,7 +1305,7 @@ export default function EphiaInvoice() {
         }
       } catch (err) {
         console.error("Failed to save invoice:", err);
-        alert("Fehler beim Speichern der Rechnung: " + err.message);
+        showErrorToast("Fehler beim Speichern der Rechnung: " + err.message);
         return;
       }
     } else {
@@ -1507,7 +1514,7 @@ export default function EphiaInvoice() {
         await deleteDocAdapter(toDelete._supabaseId);
       } catch (err) {
         console.error("Failed to delete document:", err);
-        alert("Fehler beim Löschen: " + err.message);
+        showErrorToast("Fehler beim Löschen: " + err.message);
         return;
       }
     }
@@ -1561,7 +1568,7 @@ export default function EphiaInvoice() {
         await updateDocAdapter(converted._supabaseId, converted);
       } catch (err) {
         console.error("Failed to convert invoice to standalone HV:", err);
-        alert("Fehler: " + err.message);
+        showErrorToast("Fehler: " + err.message);
         return;
       }
     }
@@ -1596,7 +1603,7 @@ export default function EphiaInvoice() {
         }
       } catch (err) {
         console.error("Failed to delete patient:", err);
-        alert("Fehler beim Löschen: " + err.message);
+        showErrorToast("Fehler beim Löschen: " + err.message);
         return;
       }
     }
@@ -1652,7 +1659,7 @@ export default function EphiaInvoice() {
     const filename = previewTab === "behandlung" ? `Behandlungsdokumentation_${nr}.pdf` : previewTab === "honorar" ? `Honorarvereinbarung_${nr}.pdf` : `Rechnung_${nr}.pdf`;
     try {
       const result = await generatePDFBlob(elementId);
-      if (!result) { alert("PDF konnte nicht erstellt werden: Dokument nicht gefunden."); return; }
+      if (!result) { showErrorToast("PDF konnte nicht erstellt werden: Dokument nicht gefunden."); return; }
       const { pdf } = result;
       // Append treatment doc as page 2 for invoices (not HV/behandlung) when flag is set
       if (previewTab === "rechnung" && viewingInvoice?.attachTreatmentPdf && viewingInvoice?.treatmentDoc) {
@@ -1662,7 +1669,7 @@ export default function EphiaInvoice() {
       pdf.save(filename);
     } catch (e) {
       console.error("PDF download failed:", e);
-      alert("PDF konnte nicht erstellt werden: " + (e?.message || e));
+      showErrorToast("PDF konnte nicht erstellt werden: " + (e?.message || e));
     }
   };
 
@@ -1917,7 +1924,7 @@ export default function EphiaInvoice() {
       setTimeout(() => setSaveToast(""), 2500);
     } catch (err) {
       console.error("HV upload error:", err);
-      alert("Fehler beim Hochladen: " + err.message);
+      showErrorToast("Fehler beim Hochladen: " + err.message);
     }
   };
 
@@ -1945,7 +1952,7 @@ export default function EphiaInvoice() {
     } catch (e) {
       if (e.name !== "AbortError") {
         console.error("Share failed:", e);
-        alert("PDF konnte nicht erstellt werden: " + (e?.message || e));
+        showErrorToast("PDF konnte nicht erstellt werden: " + (e?.message || e));
       }
     }
   };
@@ -3573,7 +3580,7 @@ export default function EphiaInvoice() {
                       } else if (session) {
                         // Fail closed: refuse to create an unencrypted patient (plaintext PII).
                         // A logged-in user always has currentMEK; if not, re-login is required.
-                        alert("Verschlüsselung nicht bereit. Bitte melde Dich neu an, bevor Du Patient:innen anlegst.");
+                        showErrorToast("Verschlüsselung nicht bereit. Bitte melde Dich neu an, bevor Du Patient:innen anlegst.");
                         return;
                       }
                     } catch (e) { console.error("Error creating patient:", e); }
@@ -3705,7 +3712,7 @@ export default function EphiaInvoice() {
                       } else if (session) {
                         // Fail closed: refuse to create an unencrypted patient (plaintext PII).
                         // A logged-in user always has currentMEK; if not, re-login is required.
-                        alert("Verschlüsselung nicht bereit. Bitte melde Dich neu an, bevor Du Patient:innen anlegst.");
+                        showErrorToast("Verschlüsselung nicht bereit. Bitte melde Dich neu an, bevor Du Patient:innen anlegst.");
                         return;
                       }
                     } catch (e) { console.error("Error creating patient:", e); }
@@ -3867,7 +3874,7 @@ export default function EphiaInvoice() {
                 navigateToPreview(entry);
               } catch (err) {
                 console.error("Quick invoice error:", err);
-                alert("Fehler beim Erstellen der Rechnung: " + err.message);
+                showErrorToast("Fehler beim Erstellen der Rechnung: " + err.message);
               }
             }}
             onUpdatePatient={async (updatedData) => {
@@ -3975,10 +3982,10 @@ export default function EphiaInvoice() {
                   try {
                     const result = await generateMultiPagePDF("consent-form-pdf-target");
                     if (result) { result.pdf.save(filename); }
-                    else alert("PDF konnte nicht erstellt werden: Dokument nicht gefunden.");
+                    else showErrorToast("PDF konnte nicht erstellt werden: Dokument nicht gefunden.");
                   } catch (e) {
                     console.error("PDF download failed:", e);
-                    alert("PDF konnte nicht erstellt werden: " + (e?.message || e));
+                    showErrorToast("PDF konnte nicht erstellt werden: " + (e?.message || e));
                   }
                 }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" /></svg>

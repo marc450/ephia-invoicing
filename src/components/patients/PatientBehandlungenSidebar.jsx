@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { fmtDate } from "../../utils/helpers";
+import { showToast } from "../../utils/toast";
 
 export default function PatientBehandlungenSidebar({
   patientBeh, matchingInvoices, patientDbId, patient,
@@ -75,7 +76,7 @@ export default function PatientBehandlungenSidebar({
                 setNewBehDatum(new Date().toISOString().slice(0, 10));
                 setNewBehZeit("");
                 if (newId) setExpandedBeh(newId);
-              } catch (e) { alert("Fehler: " + e.message); }
+              } catch (e) { showToast("Fehler: " + e.message, { error: true }); }
             }}>Erstellen</button>
             <button className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition" onClick={() => setNewBehandlungOpen(false)}>Abbrechen</button>
           </div>

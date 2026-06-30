@@ -9,6 +9,7 @@ const SCAN_REGION_ID = "voucher-scan-region";
 export default function VoucherRedeemField({ applied, gesamt, onApply, onClear, error, looking }) {
   const [code, setCode] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [camError, setCamError] = useState("");
   const scannerRef = useRef(null);
 
   const stopScanner = async () => {
@@ -22,6 +23,7 @@ export default function VoucherRedeemField({ applied, gesamt, onApply, onClear, 
 
   const startScanner = async () => {
     setScanning(true);
+    setCamError("");
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       // Wait a tick so the region div is mounted.
@@ -42,7 +44,7 @@ export default function VoucherRedeemField({ applied, gesamt, onApply, onClear, 
     } catch (e) {
       console.error("Scanner start failed:", e);
       await stopScanner();
-      alert("Kamera konnte nicht gestartet werden. Bitte Code manuell eingeben.");
+      setCamError("Kamera konnte nicht gestartet werden. Bitte Code manuell eingeben.");
     }
   };
 
@@ -92,7 +94,7 @@ export default function VoucherRedeemField({ applied, gesamt, onApply, onClear, 
         </button>
       </div>
       {scanning && <div id={SCAN_REGION_ID} className="mt-3 rounded-lg overflow-hidden" style={{ maxWidth: 320 }} />}
-      {error && <div className="text-sm text-red-600 mt-2">{error}</div>}
+      {(error || camError) && <div className="text-sm text-red-600 mt-2">{error || camError}</div>}
     </div>
   );
 }

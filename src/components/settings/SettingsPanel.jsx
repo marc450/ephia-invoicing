@@ -6,6 +6,9 @@ import { supabaseUpdateProfile } from "../../lib/supabase/profiles";
 import { supabaseDeletePatient } from "../../lib/supabase/patients";
 import { supabaseCreateBehandlung, supabaseDeleteBehandlung } from "../../lib/supabase/behandlungen";
 import { supabaseCreateDocument, supabaseDeleteDocument } from "../../lib/supabase/documents";
+import { showToast } from "../../utils/toast";
+
+const RESTORE_WORD = "ERSETZEN";
 // ═══════════════════ Settings Panel ═══════════════════
 
 export default function SettingsPanel({ practice, setPractice, show, setShow, onSave, isFirstTime, session, currentMEK, userId, patients, invoices, behandlungen, setPatients, setInvoices }) {
@@ -121,13 +124,15 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error("Export failed:", e);
-      alert("Export fehlgeschlagen: " + e.message);
+      showToast("Export fehlgeschlagen: " + e.message, { error: true });
     }
     setExportLoading(false);
   };
 
   const [importLoading, setImportLoading] = React.useState(false);
   const importFileRef = React.useRef(null);
+  const [restoreCtx, setRestoreCtx] = React.useState(null); // { data, behBackup, accessToken, uid } while the confirm modal is open
+  const [restoreTyped, setRestoreTyped] = React.useState("");
 
   const handleImportData = async (e) => {
     const file = e?.target?.files?.[0];
@@ -138,33 +143,32 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
     // file can never leave the account half-wiped.
     let data;
     try { data = JSON.parse(await file.text()); }
-    catch { alert("Backup konnte nicht gelesen werden (kein gültiges JSON)."); return; }
+    catch { showToast("Backup konnte nicht gelesen werden (kein gültiges JSON).", { error: true }); return; }
     if (!data || !data._exportVersion || !Array.isArray(data.patients) || !Array.isArray(data.invoices)) {
-      alert("Ungültiges Backup-Format."); return;
+      showToast("Ungültiges Backup-Format.", { error: true }); return;
     }
     const behBackup = Array.isArray(data.behandlungen) ? data.behandlungen : [];
 
     const accessToken = session?.access_token;
     const uid = session?.user?.id || userId;
-    if (!accessToken || !uid) { alert("Keine aktive Sitzung."); return; }
+    if (!accessToken || !uid) { showToast("Keine aktive Sitzung.", { error: true }); return; }
     // E2EE is required: everything is stored encrypted. Without a MEK we cannot
     // re-encrypt, and we must never write plaintext PII.
     if (!currentMEK) {
-      alert("Verschlüsselung ist nicht entsperrt. Bitte melde Dich neu an, bevor Du ein Backup wiederherstellst.");
+      showToast("Verschlüsselung ist nicht entsperrt. Bitte melde Dich neu an, bevor Du ein Backup wiederherstellst.", { error: true });
       return;
     }
 
-    // Strong, explicit confirmation — this REPLACES all current data.
-    const WORD = "ERSETZEN";
-    const typed = window.prompt(
-      `Backup vom ${data._exportDate ? new Date(data._exportDate).toLocaleString("de-DE") : "?"}:\n` +
-      `${data.patients.length} Patient:innen, ${behBackup.length} Behandlungen, ${data.invoices.length} Dokumente.\n\n` +
-      `ACHTUNG: ALLE aktuellen Daten werden gelöscht und durch das Backup ersetzt.\n` +
-      `Bewahre die Backup-Datei auf, bis Du geprüft hast, dass alles korrekt wiederhergestellt wurde.\n\n` +
-      `Tippe ${WORD}, um fortzufahren:`
-    );
-    if (typed !== WORD) { alert("Wiederherstellung abgebrochen."); return; }
+    // Strong, explicit confirmation via an in-app modal (no browser prompt).
+    setRestoreTyped("");
+    setRestoreCtx({ data, behBackup, accessToken, uid });
+  };
 
+  // Runs the replace-all restore once the user has confirmed in the modal.
+  const performRestore = async () => {
+    if (!restoreCtx) return;
+    const { data, behBackup, accessToken, uid } = restoreCtx;
+    setRestoreCtx(null);
     setImportLoading(true);
     try {
       // 1. Restore practice settings.
@@ -241,16 +245,17 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
       } catch (err) { console.warn("Failed to set migration version:", err); }
 
       const failed = fail.patients + fail.behandlungen + fail.documents;
-      alert(
+      showToast(
         failed > 0
-          ? `Wiederherstellung mit Fehlern abgeschlossen:\n${fail.patients} Patient:innen, ${fail.behandlungen} Behandlungen, ${fail.documents} Dokumente konnten NICHT wiederhergestellt werden.\n\nBitte bewahre die Backup-Datei auf. Die Seite wird neu geladen.`
-          : "Wiederherstellung erfolgreich. Die Seite wird neu geladen."
+          ? `Wiederherstellung mit Fehlern: ${fail.patients} Patient:innen, ${fail.behandlungen} Behandlungen, ${fail.documents} Dokumente konnten NICHT wiederhergestellt werden. Bitte bewahre die Backup-Datei auf. Die Seite wird neu geladen.`
+          : "Wiederherstellung erfolgreich. Die Seite wird neu geladen.",
+        { error: failed > 0, duration: 6000 }
       );
       // Reload so all in-memory state is re-fetched cleanly from the database.
-      window.location.reload();
+      setTimeout(() => window.location.reload(), 1600);
     } catch (err) {
       console.error("Import failed:", err);
-      alert("Import fehlgeschlagen: " + (err?.message || err) + "\n\nBitte bewahre die Backup-Datei auf.");
+      showToast("Import fehlgeschlagen: " + (err?.message || err) + ". Bitte bewahre die Backup-Datei auf.", { error: true });
       setImportLoading(false);
     }
   };
@@ -277,6 +282,29 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center overflow-y-auto p-2 sm:p-4">
+      {/* Restore confirmation modal (replaces the old browser window.prompt) */}
+      {restoreCtx && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4" onClick={() => setRestoreCtx(null)}>
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86l-8.6 14.86A1 1 0 002.54 20h18.92a1 1 0 00.85-1.28l-8.6-14.86a1 1 0 00-1.72 0z" /></svg>
+              <h3 className="text-sm font-semibold text-gray-800">Daten wiederherstellen?</h3>
+            </div>
+            <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+              Backup vom {restoreCtx.data._exportDate ? new Date(restoreCtx.data._exportDate).toLocaleString("de-DE") : "?"}: {restoreCtx.data.patients.length} Patient:innen, {restoreCtx.behBackup.length} Behandlungen, {restoreCtx.data.invoices.length} Dokumente.
+            </p>
+            <p className="text-xs text-red-600 mb-3 leading-relaxed font-medium">
+              ACHTUNG: ALLE aktuellen Daten werden gelöscht und durch das Backup ersetzt. Bewahre die Backup-Datei auf, bis Du geprüft hast, dass alles korrekt wiederhergestellt wurde.
+            </p>
+            <label className="block text-xs text-gray-500 mb-1">Tippe <span className="font-mono font-semibold">{RESTORE_WORD}</span>, um fortzufahren:</label>
+            <input autoFocus className="w-full border border-[#DFE3EB] rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-300" value={restoreTyped} onChange={(e) => setRestoreTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && restoreTyped === RESTORE_WORD) performRestore(); }} />
+            <div className="flex gap-2 justify-end">
+              <button className="px-3 py-1.5 text-xs rounded border border-[#DFE3EB] text-gray-600 hover:bg-gray-50" onClick={() => setRestoreCtx(null)}>Abbrechen</button>
+              <button className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed" disabled={restoreTyped !== RESTORE_WORD} onClick={performRestore}>Daten ersetzen</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-white rounded-xl shadow-2xl mx-0 sm:mx-4 my-auto flex flex-col" style={{ maxWidth: 900, width: "100%", maxHeight: "95vh" }}>
         {/* Sticky header */}
         <div className="flex-shrink-0 px-5 sm:px-8 pt-6 pb-4 border-b border-gray-100">
@@ -334,7 +362,7 @@ export default function SettingsPanel({ practice, setPractice, show, setShow, on
                 <input type="file" accept="image/png,image/jpeg,image/svg+xml" className="hidden" onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  if (file.size > 500 * 1024) { alert("Logo darf max. 500 KB groß sein."); return; }
+                  if (file.size > 500 * 1024) { showToast("Logo darf max. 500 KB groß sein.", { error: true }); return; }
                   const reader = new FileReader();
                   reader.onload = () => setPractice({ ...practice, logo: reader.result });
                   reader.readAsDataURL(file);
