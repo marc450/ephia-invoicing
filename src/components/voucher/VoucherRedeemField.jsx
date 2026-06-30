@@ -54,14 +54,14 @@ export default function VoucherRedeemField({ applied, gesamt, onApply, onClear, 
     return (
       <div className="mb-6 pb-5 border-b border-gray-100">
         <p className="text-xs font-bold text-gray-800 uppercase tracking-wide mb-3">Gutschein einlösen</p>
-        <div className="flex items-center justify-between bg-green-50 rounded-[10px] px-4 py-3">
-          <div>
-            <div className="font-mono font-semibold text-gray-800">{applied.code}</div>
+        <div className="flex items-start justify-between gap-3 bg-green-50 rounded-lg px-3 py-2.5">
+          <div className="min-w-0">
+            <div className="font-mono text-sm font-semibold text-gray-800 break-all">{applied.code}</div>
             <div className="text-xs text-gray-500 mt-0.5">
               Guthaben {fmt(applied.restwert || 0)} € · angerechnet <span className="font-semibold text-green-700">−{fmt(applied_betrag)} €</span>
             </div>
           </div>
-          <button className="text-xs text-gray-400 hover:text-red-500" onClick={onClear}>Entfernen</button>
+          <button className="text-xs text-gray-400 hover:text-red-500 flex-shrink-0 mt-0.5" onClick={onClear}>Entfernen</button>
         </div>
       </div>
     );
@@ -70,30 +70,33 @@ export default function VoucherRedeemField({ applied, gesamt, onApply, onClear, 
   return (
     <div className="mb-6 pb-5 border-b border-gray-100">
       <p className="text-xs font-bold text-gray-800 uppercase tracking-wide mb-3">Gutschein einlösen</p>
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <input
-          className="flex-1 px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm font-mono focus:ring-2 focus:ring-gray-300 outline-none"
-          placeholder="Gutscheincode, z.B. GS-2026-0007-7K3F"
+          className="w-full sm:flex-1 min-w-0 px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm font-mono focus:ring-2 focus:ring-gray-300 outline-none"
+          placeholder="Gutscheincode eingeben"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           onKeyDown={(e) => { if (e.key === "Enter" && code.trim()) { e.preventDefault(); onApply(code.trim()); } }}
         />
-        <button
-          className="px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-          onClick={() => onApply(code.trim())}
-          disabled={!code.trim() || looking}
-        >
-          {looking ? "…" : "Anwenden"}
-        </button>
-        <button
-          className="px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm text-gray-600 hover:bg-gray-50"
-          onClick={scanning ? stopScanner : startScanner}
-          title="QR-Code scannen"
-        >
-          {scanning ? "Stop" : "QR scannen"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            className="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap"
+            onClick={() => onApply(code.trim())}
+            disabled={!code.trim() || looking}
+          >
+            {looking ? "…" : "Anwenden"}
+          </button>
+          <button
+            className="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-[#DFE3EB] text-sm text-gray-600 hover:bg-gray-50 whitespace-nowrap inline-flex items-center justify-center gap-1.5"
+            onClick={scanning ? stopScanner : startScanner}
+            title="QR-Code scannen"
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h6v6H4V4zM14 4h6v6h-6V4zM4 14h6v6H4v-6zM14 14h2v2h-2v-2zM18 14h2v2h-2v-2zM16 18h2v2h-2v-2zM18 18h2v2h-2v-2z" /></svg>
+            {scanning ? "Stop" : "Scannen"}
+          </button>
+        </div>
       </div>
-      {scanning && <div id={SCAN_REGION_ID} className="mt-3 rounded-lg overflow-hidden" style={{ maxWidth: 320 }} />}
+      {scanning && <div id={SCAN_REGION_ID} className="mt-3 rounded-lg overflow-hidden w-full" style={{ maxWidth: 320 }} />}
       {(error || camError) && <div className="text-sm text-red-600 mt-2">{error || camError}</div>}
     </div>
   );
